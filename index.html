@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rede Cabinda Pro 19.0 África</title>
+<style>
+:root{--bg:#0a0f1a;--bg2:#121927;--card:#1e2a3a;--text:#f0f4f8;--verde:#00d26a;--azul:#00a8ff;--dourado:#ffb800;--vermelho:#ff4757;--africa:#e63946}
+body.claro{--bg:#f5f7fa;--bg2:#ffffff;--card:#e6ebf2;--text:#1a1a1a}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Roboto,sans-serif}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);overflow:hidden}
+.container{height:100%;display:flex;flex-direction:column;max-width:900px;margin:0 auto}
+header{background:var(--bg2);padding:12px 16px;display:none;align-items:center;gap:12px;border-bottom:3px solid var(--dourado)}
+header img{width:45px;height:45px;border-radius:50%;border:2px solid var(--dourado)}
+header b{font-size:16px;color:var(--dourado)}
+header small{display:block;font-size:11px;color:var(--verde)}
+#statusOnline{margin-left:6px;font-weight:700}
+.tabs{display:none;background:var(--bg2);border-bottom:2px solid #222;overflow-x:auto}
+.tab{flex:1;min-width:105px;padding:14px;text-align:center;font-size:12px;color:#8696a0;cursor:pointer;font-weight:600;position:relative;white-space:nowrap}
+.tab.active{color:var(--verde)}
+.tab.active::after{content:'';position:absolute;bottom:0;left:10%;right:10%;height:3px;background:linear-gradient(90deg,var(--verde),var(--africa));border-radius:3px}
+.painel{display:none;flex:1;min-height:0;overflow:hidden;flex-direction:column}
+.painel.active{display:flex}
+.tela{display:none;flex:1;overflow-y:auto;padding:30px 25px;text-align:center;flex-direction:column;justify-content:center}
+.tela h1{font-size:26px;color:var(--dourado);margin-bottom:8px}
+input,select{width:100%;padding:15px;background:var(--card);border:2px solid transparent;border-radius:12px;color:var(--text);font-size:16px;margin:8px 0;outline:none}
+input:focus,select:focus{border-color:var(--dourado)}
+.btn{width:100%;padding:15px;background:linear-gradient(90deg,#00d26a,#e63946);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px}
+.btn.alt{background:var(--card);border:2px solid var(--dourado);color:var(--text)}
+.btn.danger{background:var(--vermelho)}
+.aviso{font-size:12px;color:#8696a0;margin-top:8px}
+.link{text-decoration:underline;cursor:pointer;padding:8px}
+.conta{display:flex;align-items:center;gap:12px;background:var(--card);border:2px solid var(--verde);border-radius:14px;padding:14px;margin:14px 0;text-align:left}
+.conta img{width:52px;height:52px;border-radius:50%;border:2px solid var(--dourado)}
+.conta div{flex:1;min-width:0}
+.conta small{display:block;font-size:12px;color:#8696a0;overflow:hidden;text-overflow:ellipsis}
+.conta span{font-size:11px;color:var(--verde);font-weight:700}
+.passos{background:var(--card);border-radius:12px;padding:14px;margin:12px 0;text-align:left;font-size:14px;line-height:1.6}
+.barra-topo{background:var(--card);padding:12px 15px;border-bottom:2px solid var(--dourado);font-size:14px;color:var(--azul);text-align:center;font-weight:700}
+.msgs,.dic{flex:1;min-height:0;overflow-y:auto;padding:15px;background:var(--bg)}
+.msg{display:flex;gap:10px;margin-bottom:15px}
+.msg.mine{flex-direction:row-reverse}
+.avatar{width:38px;height:38px;border-radius:50%;border:2px solid var(--dourado);flex-shrink:0}
+.bubble{max-width:75%;padding:10px 14px;background:var(--card);border-radius:18px 18px 18px 4px;font-size:15px;border:1px solid rgba(255,184,0,.25);word-break:break-word}
+.msg.mine .bubble{background:linear-gradient(135deg,#005c4b,#00a050);color:#fff;border:none;border-radius:18px 18px 4px 18px}
+.msg.bot .bubble{border:1px solid var(--azul)}
+.nome{font-size:12px;font-weight:700;margin-bottom:3px;color:var(--dourado)}
+.hora{font-size:11px;color:#8696a0;text-align:right;margin-top:4px}
+.input-area{display:flex;align-items:center;padding:10px 12px;background:var(--bg2);gap:8px;border-top:2px solid #222}
+.input-area input{flex:1;border-radius:25px;padding:12px 16px;margin:0;border:none}
+.icon-btn{width:44px;height:44px;border-radius:50%;background:var(--card);border:2px solid var(--dourado);color:var(--dourado);font-size:20px;cursor:pointer;flex-shrink:0}
+.icon-btn:disabled{opacity:.4;cursor:not-allowed}
+.loading{color:var(--dourado)}
+.cfg{overflow-y:auto;flex:1;min-height:0}
+.config-grid{display:grid;gap:12px;padding:0 20px 20px}
+.config-card{background:var(--card);padding:15px;border-radius:12px;border:2px solid rgba(255,184,0,.2)}
+.config-card h3{color:var(--dourado);font-size:15px;margin-bottom:8px}
+.switch{display:flex;justify-content:space-between;align-items:center;margin:8px 0}
+.switch input{width:50px;height:25px;margin:0}
+.info-user{text-align:center;padding:25px;background:var(--card);border-radius:12px;margin:15px 20px}
+.info-user small{display:block}
+.africa-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px;background:var(--bg2);border-top:2px solid #222}
+.africa-card{background:var(--card);border-radius:12px;padding:10px;text-align:center;cursor:pointer;border:2px solid transparent}
+.africa-card:hover,.africa-card:active{border-color:var(--africa)}
+.africa-card .icon{font-size:26px}
+.africa-card small{display:block;color:#8696a0}
+select{appearance:none;background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='gray' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");background-repeat:no-repeat;background-position:right 15px center;background-size:15px}
+.dic input,.dic select{margin:6px 0;padding:12px}
+.dia{background:linear-gradient(135deg,#005c4b,#e63946);color:#fff;border-radius:14px;padding:14px;margin-bottom:10px;text-align:center}
+.dia b{font-size:24px;display:block;margin:4px 0}
+.item{background:var(--card);border-radius:10px;padding:10px 12px;margin:6px 0;border-left:4px solid var(--dourado)}
+.item small{color:var(--azul);font-weight:700}
+.item i{color:#8696a0;font-size:11px}
+.opt{display:block;width:100%;padding:14px;margin:8px 0;background:var(--card);color:var(--text);border:2px solid var(--dourado);border-radius:12px;font-size:16px;cursor:pointer}
+.opt.ok{background:var(--verde);color:#000;border-color:var(--verde)}
+.opt.no{background:var(--vermelho);color:#fff;border-color:var(--vermelho)}
+.rank{display:flex;justify-content:space-between;padding:10px 12px;background:var(--card);border-radius:10px;margin:5px 0}
+.sec{color:var(--dourado);margin:14px 0 6px;font-size:15px}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- CONTA REGISTADA -->
+<div id="telaConta" class="tela">
+  <h1>🌍 Rede Cabinda Pro</h1>
+  <p>Bem-vindo de volta!</p>
+  <div class="conta">
+    <img id="cAvatar" alt="">
+    <div><b id="cNome"></b><small id="cEmail"></small><small id="cCurso"></small></div>
+    <span>✅ Registado</span>
+  </div>
+  <input id="senhaConta" type="password" placeholder="Tua senha" autocomplete="off" onkeydown="if(event.key==='Enter')entrarConta()">
+  <input id="kConta" placeholder="Chave GROQ (gsk_...)" autocomplete="off">
+  <button class="btn" onclick="entrarConta()">Entrar</button>
+  <button class="btn alt" onclick="esqueci('conta')">Esqueci a senha</button>
+  <button class="btn alt" onclick="mostrar('login')">Usar outra conta</button>
+  <button class="btn alt" onclick="mostrar('registo')">Criar conta nova</button>
+  <p class="aviso link" onclick="removerConta()">Remover esta conta deste aparelho</p>
+</div>
+
+<!-- ENTRAR (outro aparelho) -->
+<div id="login" class="tela">
+  <h1>🌍 Rede Cabinda Pro</h1>
+  <p>Entra com o email com que te registaste</p>
+  <input id="emailLogin" type="email" placeholder="Email" autocomplete="off">
+  <input id="senhaLogin" type="password" placeholder="Senha" autocomplete="off">
+  <input id="kLogin" placeholder="Chave GROQ (gsk_...)" autocomplete="off">
+  <button class="btn" onclick="entrarLogin()">Entrar</button>
+  <button class="btn alt" onclick="esqueci('login')">Esqueci a senha</button>
+  <button class="btn alt" onclick="mostrar('registo')">Criar conta nova</button>
+  <p class="aviso">Chave grátis em console.groq.com/keys</p>
+</div>
+
+<!-- REGISTO -->
+<div id="registo" class="tela">
+  <h1>📝 Criar conta</h1>
+  <p>Aberto a todos os cursos. Precisas de um email real para confirmar.</p>
+  <input id="rNome" placeholder="Nome (aparece no chat)" maxlength="30" autocomplete="off">
+  <input id="rEmail" type="email" placeholder="Email real" autocomplete="off">
+  <input id="rSenha" type="password" placeholder="Senha (mín. 6 caracteres)" autocomplete="off">
+  <input id="rSenha2" type="password" placeholder="Repete a senha" autocomplete="off">
+  <select id="rCurso" onchange="cursoOutro(this)">
+    <option value="">-- Escolhe teu curso --</option>
+    <option>INFORMÁTICA</option><option>COMUNICAÇÃO SOCIAL</option><option>ENERGIAS RENOVÁVEIS</option>
+    <option>GESTÃO DE EMPRESAS</option><option>ENFERMAGEM GERAL</option><option>DIREITO</option>
+    <option>ENGENHARIA CIVIL</option><option>MEDICINA</option><option>CONTABILIDADE</option>
+    <option>MATEMÁTICA</option><option>LÍNGUA PORTUGUESA</option><option>AGRONOMIA</option>
+    <option value="__outro">➕ OUTRO (escrever o meu curso)</option>
+  </select>
+  <input id="rCursoOutro" placeholder="Escreve o teu curso" maxlength="40" style="display:none" autocomplete="off">
+  <input id="rKey" placeholder="Chave GROQ (gsk_...)" autocomplete="off">
+  <button class="btn" onclick="registar()">Criar conta</button>
+  <button class="btn alt" onclick="voltar()">Voltar</button>
+</div>
+
+<!-- CONFIRMAR EMAIL -->
+<div id="telaVerif" class="tela">
+  <h1>📧 Confirma o teu email</h1>
+  <p>Enviámos um link de confirmação para</p>
+  <p><b id="vEmail" style="color:var(--dourado)"></b></p>
+  <div class="passos">
+    1. Abre o teu email (vê também o spam).<br>
+    2. Toca no link de confirmação.<br>
+    3. Volta aqui e toca em <b>Já confirmei</b>.
+  </div>
+  <button class="btn" onclick="jaConfirmei()">✅ Já confirmei</button>
+  <button class="btn alt" onclick="reenviar()">Reenviar email</button>
+  <button class="btn alt" onclick="outroEmail()">Usei o email errado</button>
+</div>
+
+<header id="headerApp">
+  <img id="meuAvatar" alt="">
+  <div>
+    <b>Rede Cabinda Pro 19.0 África</b>
+    <small><span id="cursoAtual"></span><span id="statusOnline">● Offline</span></small>
+  </div>
+</header>
+
+<div class="tabs" id="tabsApp">
+  <div class="tab active" onclick="trocarTab('chat',this)">💬 Geral</div>
+  <div class="tab" onclick="trocarTab('curso',this)">👨‍🎓 Curso</div>
+  <div class="tab" onclick="trocarTab('ia',this)">🤖 IA</div>
+  <div class="tab" onclick="trocarTab('dicionario',this)">📖 Dicionário</div>
+  <div class="tab" onclick="trocarTab('desafio',this)">🏆 Desafio</div>
+  <div class="tab" onclick="trocarTab('africa',this)">🌍 África</div>
+  <div class="tab" onclick="trocarTab('config',this)">⚙️ Config</div>
+</div>
+
+<div id="chat" class="painel active" style="display:none">
+  <div class="barra-topo">💬 Sala Geral</div>
+  <div class="msgs" id="msgs"></div>
+  <div class="input-area">
+    <input id="texto" maxlength="500" placeholder="Fala com todos..." onkeydown="if(event.key==='Enter')enviarSala('Geral','texto')">
+    <button class="icon-btn" onclick="enviarSala('Geral','texto')">➤</button>
+  </div>
+</div>
+
+<div id="curso" class="painel">
+  <div class="barra-topo" id="tituloCurso"></div>
+  <div class="msgs" id="msgsCurso"></div>
+  <div class="input-area">
+    <input id="textoCurso" maxlength="500" placeholder="Fala com teu curso..." onkeydown="if(event.key==='Enter')enviarSala(salaCurso,'textoCurso')">
+    <button class="icon-btn" onclick="enviarSala(salaCurso,'textoCurso')">➤</button>
+  </div>
+</div>
+
+<div id="ia" class="painel">
+  <div class="barra-topo">🤖 IA Cabinda</div>
+  <div class="msgs" id="msgsIA"></div>
+  <div class="input-area">
+    <input id="textoIA" maxlength="1000" placeholder="Pergunta qualquer coisa..." onkeydown="if(event.key==='Enter')enviarIA()">
+    <button class="icon-btn" id="btnIA" onclick="enviarIA()">🧠</button>
+  </div>
+</div>
+
+<div id="dicionario" class="painel">
+  <div class="barra-topo">📖 Dicionário de Línguas Nacionais</div>
+  <div class="dic">
+    <div class="dia"><small>✨ Palavra do dia</small><b id="diaPalavra"></b><span id="diaSig"></span></div>
+    <input id="buscaDic" placeholder="🔎 Procurar palavra..." oninput="renderDic()">
+    <select id="filtroLingua" onchange="renderDic()"></select>
+    <div id="listaDic"></div>
+    <h3 class="sec">➕ Ensina uma palavra à Rede</h3>
+    <select id="novaLingua"></select>
+    <input id="novaPalavra" placeholder="Palavra na língua" maxlength="40">
+    <input id="novoSig" placeholder="Significado em português" maxlength="80">
+    <button class="btn" onclick="addPalavra()">Adicionar ao dicionário</button>
+    <p class="aviso">As palavras novas aparecem para todos, com o teu nome.</p>
+  </div>
+</div>
+
+<div id="desafio" class="painel">
+  <div class="barra-topo">🏆 Desafio das Línguas</div>
+  <div class="dic">
+    <div class="dia"><small>Teus pontos</small><b id="meusPontos">0</b><span id="seqTxt">Sequência: 0</span></div>
+    <div id="pergunta" style="font-size:18px;font-weight:700;text-align:center;margin:10px 0"></div>
+    <div id="opcoes"></div>
+    <h3 class="sec">🏅 Ranking da Rede (ao vivo)</h3>
+    <div id="ranking"></div>
+  </div>
+</div>
+
+<div id="africa" class="painel">
+  <div class="barra-topo">🌍 Coisas Africanas</div>
+  <div class="msgs" id="msgsAfrica"></div>
+  <div class="africa-grid">
+    <div class="africa-card" onclick="mostrarAfrica('provérbios')"><div class="icon">📜</div><b>Provérbios</b><small>Sabedoria africana</small></div>
+    <div class="africa-card" onclick="mostrarAfrica('comida')"><div class="icon">🍲</div><b>Comida</b><small>Funge, Mufete...</small></div>
+    <div class="africa-card" onclick="mostrarAfrica('música')"><div class="icon">🎵</div><b>Música</b><small>Kuduro, Semba</small></div>
+    <div class="africa-card" onclick="mostrarAfrica('tecnologia')"><div class="icon">🚀</div><b>Tec Africana</b><small>Inovação nossa</small></div>
+    <div class="africa-card" onclick="mostrarAfrica('história')"><div class="icon">🏛️</div><b>História</b><small>Reino do Kongo</small></div>
+    <div class="africa-card" onclick="mostrarAfrica('língua')"><div class="icon">🗣️</div><b>Línguas</b><small>Kikongo, Umbundu</small></div>
+  </div>
+</div>
+
+<div id="config" class="painel">
+  <div class="cfg">
+    <div class="info-user">
+      <b id="confNome"></b>
+      <small id="confEmail" style="color:#8696a0"></small>
+      <small id="confVerif"></small>
+      <small id="confCurso" style="color:var(--verde)"></small>
+    </div>
+    <div class="config-grid">
+      <div class="config-card">
+        <h3>🎨 Tema</h3>
+        <div class="switch"><span>Modo noturno</span><input type="checkbox" checked id="temaSwitch" onchange="mudarTema(this.checked)"></div>
+      </div>
+      <div class="config-card">
+        <h3>🔔 Notificações</h3>
+        <div class="switch"><span>Som de mensagem</span><input type="checkbox" checked id="somMsg" onchange="salvarConfig()"></div>
+        <div class="switch"><span>Vibrar ao receber</span><input type="checkbox" id="vibrar" onchange="salvarConfig()"></div>
+      </div>
+      <div class="config-card">
+        <h3>🌍 Idioma</h3>
+        <select id="idiomaSelect" onchange="salvarConfig()">
+          <option value="pt-ao">Português Angola</option>
+          <option value="pt-pt">Português Portugal</option>
+          <option value="kikongo">Kikongo</option>
+          <option value="fiote">Fiote</option>
+        </select>
+        <p class="aviso">A IA passa a responder neste idioma, com tradução em português. Pode errar: confirma com quem fala a língua.</p>
+      </div>
+      <div class="config-card">
+        <h3>📊 Estatísticas</h3>
+        <div>Mensagens enviadas: <span id="statsMsg">0</span></div>
+        <div>Último acesso: <span id="statsUltimo">-</span></div>
+      </div>
+      <div class="config-card">
+        <h3>⚠️ Conta</h3>
+        <button class="btn danger" onclick="sair()">Sair da conta</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyB6-1Je_CO35ly7qHGsnEjxQwcrj7moV0I",
+  authDomain: "rede-kongo-pro.firebaseapp.com",
+  databaseURL: "https://rede-kongo-pro-default-rtdb.firebaseio.com",
+  projectId: "rede-kongo-pro",
+  storageBucket: "rede-kongo-pro.firebasestorage.app",
+  messagingSenderId: "444007724553",
+  appId: "1:444007724553:web:f30f0d16f59e2ed388ead8"
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
+const avatarUrl = (n,bg,fg) => 'https://ui-avatars.com/api/?name='+encodeURIComponent(n)+'&background='+bg+'&color='+(fg||'0a0f1a');
+const lerLS = (k,def) => { try { const v = localStorage.getItem(k); return v===null?def:v; } catch(e){ return def; } };
+const gravarLS = (k,v) => { try { localStorage.setItem(k,v); } catch(e){} };
+const idNome = n => n.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const mascarar = e => e.replace(/(^.).*(@.*$)/,'$1•••$2');
+const lerConta = () => { try { return JSON.parse(lerLS('conta','null')); } catch(e){ return null; } };
+const chaveSala = c => 'Curso_'+c.replace(/[ .#$\[\]\/]/g,'_');
+const DESCARTAVEIS = ['mailinator.com','10minutemail.com','guerrillamail.com','tempmail.com','temp-mail.org','yopmail.com','trashmail.com','sharklasers.com','throwawaymail.com','getnada.com','maildrop.cc','dispostable.com'];
+
+let uid="", nome="", cursoAtual="", salaCurso="", db=null, apiKey="", iaOcupada=false, pend=null;
+let historicoIA = [];
+const inicio = Date.now();
+const MODELOS = ['openai/gpt-oss-120b','openai/gpt-oss-20b'];
+const LINGUAS = ['Kikongo','Fiote','Kimbundu','Umbundu','Chokwe'];
+
+const BASE = [
+['Kikongo','mbote','olá, bom dia'],['Kikongo','matondo','obrigado'],['Kikongo','nzo','casa'],
+['Kikongo','maza','água'],['Kikongo','mvula','chuva'],['Kikongo','mama','mãe'],
+['Kikongo','tata','pai'],['Kikongo','mwana','criança, filho'],['Kikongo','mfumu','chefe, rei'],
+['Kikongo','nsusu','galinha'],['Kikongo','mbwa','cão'],['Kikongo','nzambi','Deus'],
+['Kikongo','zola','amar'],['Kikongo','mbanza','cidade, povoação'],
+['Kimbundu','camba','amigo'],['Kimbundu','muxima','coração'],['Kimbundu','kota','mais velho'],
+['Kimbundu','kianda','sereia, espírito das águas'],['Kimbundu','kizomba','festa'],
+['Kimbundu','kilombo','acampamento fortificado'],
+['Umbundu','onjo','casa'],['Umbundu','omunu','pessoa']
+];
+let comunidade = [];
+let certa="", seq=0, respondido=false, pontos=0;
+
+const coisasAfricanas = {
+"provérbios": `📜 **SABEDORIA AFRICANA**
+1. "Se queres ir rápido, vai sozinho; se queres ir longe, vai acompanhado."
+2. "É preciso uma aldeia inteira para educar uma criança."
+3. "Quem não sabe para onde vai, que olhe de onde veio."
+4. "Muitas mãos tornam o trabalho leve."`,
+"comida": `🍲 **COMIDA DE ANGOLA**
+1. **Funge** - Massa de mandioca ou milho, acompanha o calulu
+2. **Muamba de galinha** - Prato nacional com óleo de palma e quiabo
+3. **Mufete** - Peixe grelhado com feijão, banana e farofa
+4. **Calulu** - Peixe seco ou fresco com legumes e óleo de palma
+5. **Jinguba** - Amendoim torrado, snack popular`,
+"música": `🎵 **MÚSICA ANGOLANA**
+1. **Kuduro** - Nasceu em Luanda nos anos 90
+2. **Semba** - Raiz do samba brasileiro
+3. **Kizomba** - Vem do kimbundu, ritmo romântico
+4. **Rebita** - Dança tradicional angolana
+5. **Artistas**: Anselmo Ralph, C4 Pedro, Titica`,
+"tecnologia": `🚀 **TECNOLOGIA AFRICANA**
+1. **M-Pesa** - Dinheiro móvel criado no Quénia em 2007
+2. **Zipline** - Drones que entregam sangue e medicamentos no Ruanda e Gana
+3. **Solar Sister** - Mulheres africanas vendem energia solar
+4. **SACS** - Cabo submarino da Angola Cables que liga Luanda a Fortaleza (Brasil)`,
+"história": `🏛️ **REINO DO KONGO**
+1. Formou-se por volta de 1390, capital Mbanza Kongo
+2. Nzinga a Nkuwu foi baptizado em 1491
+3. Rei Afonso I (Mvemba a Nzinga) reinou de 1509 a cerca de 1542
+4. Em 1604 o Kongo enviou o embaixador António Manuel ao Vaticano`,
+"língua": `🗣️ **LÍNGUAS DE ANGOLA**
+1. **Kikongo** - Norte de Angola, incluindo Cabinda
+2. **Umbundu** - Língua nacional mais falada
+3. **Kimbundu** - Região de Luanda
+4. **Chokwe** - Leste de Angola, famosa pela escultura
+5. **Português** - Tem palavras de origem africana, como caçula e fubá`
+};
+
+function addMsg(containerId, remetente, html, tipo){
+  const cont = $(containerId);
+  const div = document.createElement('div');
+  div.className = 'msg ' + tipo;
+  const av = tipo==='bot' ? avatarUrl('IA','00a8ff','fff') : avatarUrl(remetente,'ffb800');
+  div.innerHTML = `<img src="${av}" class="avatar" alt=""><div class="bubble">${html}</div>`;
+  cont.appendChild(div);
+  cont.scrollTop = cont.scrollHeight;
+  return div;
+}
+
+function mostrarAfrica(tipo){
+  addMsg('msgsAfrica','Rede Cabinda','<b>🌍 Rede Cabinda Pro:</b><br>'+fmt(coisasAfricanas[tipo]),'bot');
+}
+
+/* ---------- TELAS DE CONTA ---------- */
+const TELAS = ['telaConta','login','registo','telaVerif'];
+function mostrar(id){ TELAS.forEach(x=>{ $(x).style.display = x===id ? 'flex' : 'none'; }); }
+function voltar(){ mostrar(lerConta() ? 'telaConta' : 'login'); }
+function cursoOutro(sel){ $('rCursoOutro').style.display = sel.value==='__outro' ? 'block' : 'none'; }
+
+function mostrarTelaInicial(){
+  const c = lerConta();
+  if(c){
+    $('cAvatar').src = avatarUrl(c.nome,'ffb800');
+    $('cNome').textContent = c.nome;
+    $('cEmail').textContent = mascarar(c.email);
+    $('cCurso').textContent = c.curso;
+    $('kConta').style.display = lerLS('apiKey','') ? 'none' : 'block';
+    mostrar('telaConta');
+  } else { mostrar('login'); }
+}
+
+function initFB(){ if(!firebase.apps.length) firebase.initializeApp(firebaseConfig); }
+
+function erroAuth(e){
+  return {
+    'auth/email-already-in-use':'Esse email já está registado. Toca em "Entrar".',
+    'auth/invalid-email':'Email inválido.',
+    'auth/invalid-credential':'Email ou senha incorretos.',
+    'auth/wrong-password':'Email ou senha incorretos.',
+    'auth/user-not-found':'Esse email não está registado. Toca em "Criar conta nova".',
+    'auth/weak-password':'Senha fraca. Usa 6 ou mais caracteres.',
+    'auth/too-many-requests':'Muitas tentativas. Espera uns minutos.',
+    'auth/operation-not-allowed':'Ativa Email/Password no Firebase (Authentication).',
+    'auth/network-request-failed':'Sem internet.'
+  }[e.code] || ('Erro: '+(e.message||e));
+}
+
+async function registar(){
+  const n = $('rNome').value.trim(), email = $('rEmail').value.trim().toLowerCase();
+  const s = $('rSenha').value, s2 = $('rSenha2').value, k = $('rKey').value.trim();
+  let c = $('rCurso').value;
+  if(c==='__outro') c = $('rCursoOutro').value.trim().toUpperCase().replace(/[<>]/g,'');
+  const id = idNome(n);
+  if(id.length<3) return alert('O nome precisa de pelo menos 3 letras ou números.');
+  if(!/^\S+@\S+\.\S+$/.test(email)) return alert('Escreve um email válido.');
+  if(DESCARTAVEIS.some(d=>email.endsWith('@'+d))) return alert('Usa um email real, não um email temporário.');
+  if(s.length<6) return alert('A senha precisa de pelo menos 6 caracteres.');
+  if(s!==s2) return alert('As senhas não são iguais.');
+  if(c.length<3) return alert('Escolhe o teu curso, ou toca em OUTRO e escreve-o (mín. 3 letras).');
+  if(!k.startsWith('gsk_')) return alert('Cola a chave GROQ que começa com gsk_');
+  try{
+    initFB();
+    const cred = await firebase.auth().createUserWithEmailAndPassword(email,s);
+    db = firebase.database();
+    try{ await db.ref('nomes/'+id).set(cred.user.uid); }
+    catch(e){
+      await cred.user.delete().catch(()=>{});
+      return alert('Esse nome já tem dono (ou as regras do Firebase não foram atualizadas). Escolhe outro nome.');
+    }
+    await cred.user.updateProfile({displayName:n}).catch(()=>{});
+    await db.ref('perfis/'+cred.user.uid).set({nome:n, curso:c}).catch(()=>{});
+    gravarLS('conta', JSON.stringify({email, nome:n, curso:c}));
+    gravarLS('apiKey', k);
+    await cred.user.sendEmailVerification().catch(()=>{});
+    mostrarVerif(cred.user, k, {nome:n, curso:c});
+  }catch(e){ alert(erroAuth(e)); }
+}
+
+function mostrarVerif(user, chave, extra){
+  pend = {user, chave, extra};
+  $('vEmail').textContent = user.email;
+  mostrar('telaVerif');
+}
+
+async function jaConfirmei(){
+  if(!pend) return mostrarTelaInicial();
+  try{
+    await pend.user.reload();
+    if(!pend.user.emailVerified)
+      return alert('Ainda não confirmaste. Abre o link no teu email (vê também o spam) e toca aqui outra vez.');
+    await abrirApp(pend.user, pend.chave, pend.extra);
+  }catch(e){ alert(erroAuth(e)); }
+}
+
+async function reenviar(){
+  if(!pend) return;
+  try{ await pend.user.sendEmailVerification(); alert('Email reenviado. Vê também o spam.'); }
+  catch(e){ alert(erroAuth(e)); }
+}
+
+async function outroEmail(){
+  if(!pend || !confirm('Apagar este registo e começar de novo?')) return;
+  try{
+    const n = (pend.extra && pend.extra.nome) || pend.user.displayName || '';
+    if(idNome(n)) await firebase.database().ref('nomes/'+idNome(n)).remove().catch(()=>{});
+    await firebase.database().ref('perfis/'+pend.user.uid).remove().catch(()=>{});
+    await pend.user.delete();
+  }catch(e){ try{ await firebase.auth().signOut(); }catch(_){} }
+  try{ localStorage.removeItem('conta'); }catch(e){}
+  pend = null; mostrar('registo');
+}
+
+async function acessar(email, senha, chave){
+  if(!email || !senha) return alert('Escreve o email e a senha.');
+  if(!chave.startsWith('gsk_')) return alert('Cola a chave GROQ que começa com gsk_');
+  try{
+    initFB();
+    const cred = await firebase.auth().signInWithEmailAndPassword(email,senha);
+    gravarLS('apiKey', chave);
+    await abrirApp(cred.user, chave);
+  }catch(e){ alert(erroAuth(e)); }
+}
+
+function entrarLogin(){
+  acessar($('emailLogin').value.trim().toLowerCase(), $('senhaLogin').value, $('kLogin').value.trim() || lerLS('apiKey',''));
+}
+function entrarConta(){
+  const c = lerConta(); if(!c) return mostrar('login');
+  acessar(c.email, $('senhaConta').value, $('kConta').value.trim() || lerLS('apiKey',''));
+}
+
+async function esqueci(origem){
+  const c = lerConta();
+  const email = origem==='conta' && c ? c.email : $('emailLogin').value.trim().toLowerCase();
+  if(!email) return alert('Escreve o teu email primeiro.');
+  try{
+    initFB();
+    await firebase.auth().sendPasswordResetEmail(email);
+    alert('Enviámos um link para '+mascarar(email)+'. Vê também o spam.');
+  }catch(e){ alert(erroAuth(e)); }
+}
+
+function removerConta(){
+  if(confirm('Remover esta conta deste aparelho? A conta continua registada, só deixa de aparecer aqui.')){
+    try{ localStorage.removeItem('conta'); localStorage.removeItem('apiKey'); }catch(e){}
+    mostrarTelaInicial();
+  }
+}
+
+async function abrirApp(user, chave, extra){
+  try{ await user.reload(); }catch(e){}
+  if(!user.emailVerified){ return mostrarVerif(user, chave, extra); }
+  await user.getIdToken(true).catch(()=>{});
+
+  uid = user.uid; db = firebase.database(); apiKey = chave;
+  nome = (extra && extra.nome) || user.displayName || user.email.split('@')[0];
+  let c = extra && extra.curso;
+  if(!c){ try{ c = (await db.ref('perfis/'+uid+'/curso').once('value')).val(); }catch(e){} }
+  if(!c){ const sv = lerConta(); c = (sv && sv.curso) || 'GERAL'; }
+  cursoAtual = c; salaCurso = chaveSala(c);
+  gravarLS('apiKey',chave);
+  gravarLS('conta', JSON.stringify({email:user.email, nome, curso:c}));
+
+  TELAS.forEach(x=>$(x).style.display='none');
+  $('headerApp').style.display='flex';
+  $('tabsApp').style.display='flex';
+  $('chat').style.display='';
+  $('meuAvatar').src = avatarUrl(nome,'ffb800');
+  $('cursoAtual').textContent = 'Curso: ' + cursoAtual;
+  $('confNome').textContent = nome;
+  $('confEmail').textContent = user.email;
+  $('confVerif').textContent = '✅ Email verificado';
+  $('confVerif').style.color = 'var(--verde)';
+  $('confCurso').textContent = 'Curso: ' + cursoAtual;
+  $('tituloCurso').textContent = '👨‍🎓 Sala: ' + cursoAtual;
+
+  atualizarStatus();
+  window.addEventListener('online', atualizarStatus);
+  window.addEventListener('offline', atualizarStatus);
+
+  carregarSala('Geral','msgs');
+  carregarSala(salaCurso,'msgsCurso');
+  iniciarDicionario();
+  iniciarDesafio();
+  carregarConfig();
+
+  const saud = ['kikongo','fiote'].includes($('idiomaSelect').value) ? 'Mbote' : 'Olá';
+  addMsg('msgsIA','IA',`<b>🤖 IA Cabinda:</b><br>${saud} ${esc(nome)}! Pergunta-me o que quiseres sobre ${esc(cursoAtual.toLowerCase())}, tecnologia ou Angola.`,'bot');
+  addMsg('msgsAfrica','Rede Cabinda','<b>🌍 Rede Cabinda Pro:</b><br>Toca num dos cards abaixo para explorar.','bot');
+}
+
+function atualizarStatus(){
+  const s = $('statusOnline');
+  const on = navigator.onLine;
+  s.textContent = on ? '● Online' : '● Offline';
+  s.style.color = on ? '#00d26a' : '#ff4757';
+}
+
+function tocarSom(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = 800; g.gain.value = 0.08;
+    o.start(); o.stop(ctx.currentTime+0.12);
+  }catch(e){}
+}
+
+function carregarSala(sala, containerId){
+  db.ref('msgs/'+sala).limitToLast(100).on('child_added', snap=>{
+    const m = snap.val();
+    if(!m || !m.texto) return;
+    const minha = m.uid ? m.uid === uid : m.nome === nome;
+    const hora = new Date(m.hora).toLocaleTimeString('pt-AO',{hour:'2-digit',minute:'2-digit'});
+    addMsg(containerId, m.nome, (minha?'':`<div class="nome">${esc(m.nome)}</div>`)+esc(m.texto)+`<div class="hora">${hora}</div>`, minha?'mine':'');
+    if(!minha && m.hora > inicio){
+      if($('somMsg').checked) tocarSom();
+      if($('vibrar').checked && navigator.vibrate) navigator.vibrate(200);
+    }
+  }, err => addMsg(containerId,'Sistema','⚠️ Sem permissão para ler mensagens. Confirma o email e publica as regras do Firebase.','bot'));
+}
+
+function enviarSala(sala, inputId){
+  const el = $(inputId), texto = el.value.trim();
+  if(!texto || !db) return;
+  db.ref('msgs/'+sala).push({uid, nome, curso:cursoAtual, texto, hora:Date.now()})
+    .then(()=>{
+      const t = parseInt(lerLS('statsMsg','0'))+1;
+      gravarLS('statsMsg',t); $('statsMsg').textContent = t;
+    })
+    .catch(e=>{
+      const perm = (e && e.code==='PERMISSION_DENIED') || /permission/i.test((e && e.message) || '');
+      alert(perm
+        ? 'Sem permissão para enviar. Confirma que o email está verificado, que as regras novas foram publicadas, e sai e entra de novo.'
+        : 'Não foi possível enviar: '+((e && e.message) || 'erro desconhecido'));
+    });
+  el.value='';
+}
+
+/* ---------- IA ---------- */
+async function chamarGroq(mensagens, signal){
+  let ultimo = {status:0, msg:'Erro desconhecido'};
+  for(const modelo of MODELOS){
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method:'POST', signal,
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+      body: JSON.stringify({model:modelo, messages:mensagens, temperature:0.7, max_completion_tokens:1500, reasoning_effort:'low'})
+    });
+    const data = await res.json().catch(()=>({}));
+    if(res.ok) return data;
+    ultimo = {status:res.status, msg:(data.error && data.error.message) || ('Erro '+res.status)};
+    if(res.status!==404 && !/model/i.test(ultimo.msg)) break;
+  }
+  const e = new Error(ultimo.msg); e.status = ultimo.status; throw e;
+}
+
+async function enviarIA(){
+  if(iaOcupada) return;
+  const el = $('textoIA'), texto = el.value.trim();
+  if(!texto) return;
+  el.value='';
+  addMsg('msgsIA', nome, esc(texto), 'mine');
+  const carregando = addMsg('msgsIA','IA','<span class="loading">Pensando...</span>','bot');
+  iaOcupada = true; $('btnIA').disabled = true;
+
+  historicoIA.push({role:'user', content:texto});
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 40000);
+  try{
+    const regra = {
+      'pt-ao':'Responde em português de Angola.',
+      'pt-pt':'Responde em português de Portugal.',
+      'kikongo':'Responde em Kikongo e a seguir dá a tradução em português entre parênteses. Se não tiveres certeza de alguma palavra, avisa.',
+      'fiote':'Responde em Fiote (variante do Kikongo falada em Cabinda) e a seguir dá a tradução em português entre parênteses. Se não tiveres certeza de alguma palavra, avisa.'
+    }[$('idiomaSelect').value] || '';
+    const sistema = {role:'system', content:`Tu és a IA da Rede Cabinda Pro, uma rede de estudantes angolanos. O utilizador chama-se ${nome} e estuda ${cursoAtual}. ${regra} Sê claro e curto, e ajuda com estudos, tecnologia e cultura africana.`};
+    const data = await chamarGroq([sistema, ...historicoIA.slice(-10)], ctrl.signal);
+    const resposta = (data.choices[0].message.content || '').trim() || 'Não consegui responder. Tenta outra vez.';
+    historicoIA.push({role:'assistant', content:resposta});
+    carregando.querySelector('.bubble').innerHTML = '<b>🤖 IA Cabinda:</b><br>'+fmt(resposta);
+  }catch(e){
+    historicoIA.pop();
+    let msg = e.message;
+    if(e.name==='AbortError') msg = 'A IA demorou demais. Tenta outra vez.';
+    else if(e instanceof TypeError) msg = 'Sem ligação à internet.';
+    else if(e.status===401) msg = 'Chave GROQ inválida. Sai da conta e coloca uma chave nova.';
+    else if(e.status===429) msg = 'Muitos pedidos. Espera uns segundos e tenta outra vez.';
+    carregando.querySelector('.bubble').innerHTML = '⚠️ '+esc(msg);
+  }finally{
+    clearTimeout(timer);
+    iaOcupada = false; $('btnIA').disabled = false;
+    $('msgsIA').scrollTop = $('msgsIA').scrollHeight;
+  }
+}
+
+/* ---------- DICIONÁRIO ---------- */
+function iniciarDicionario(){
+  const ops = LINGUAS.map(l=>`<option>${l}</option>`).join('');
+  $('filtroLingua').innerHTML = '<option value="">Todas as línguas</option>'+ops;
+  $('novaLingua').innerHTML = ops;
+  const d = BASE[Math.floor(Date.now()/864e5) % BASE.length];
+  $('diaPalavra').textContent = d[1];
+  $('diaSig').textContent = d[0]+': '+d[2];
+  db.ref('dicionario').limitToLast(300).on('child_added', s=>{
+    const v = s.val();
+    if(v && v.palavra && v.sig){ comunidade.push([v.lingua||'Outra', v.palavra, v.sig, v.por||'']); renderDic(); }
+  });
+  renderDic();
+}
+
+function renderDic(){
+  const q = $('buscaDic').value.trim().toLowerCase(), l = $('filtroLingua').value;
+  const todos = [...BASE.map(w=>[w,0]), ...comunidade.map(w=>[w,1])]
+    .filter(([w])=>(!l||w[0]===l) && (!q||w[1].toLowerCase().includes(q)||w[2].toLowerCase().includes(q)));
+  $('listaDic').innerHTML = todos.map(([w,c])=>
+    `<div class="item"><small>${esc(w[0])}</small> <b>${esc(w[1])}</b> = ${esc(w[2])}${c?'<br><i>Ensinada por '+esc(w[3])+'</i>':''}</div>`
+  ).join('') || '<p class="aviso">Nada encontrado. Ensina essa palavra à Rede aqui em baixo!</p>';
+}
+
+function addPalavra(){
+  const l = $('novaLingua').value, p = $('novaPalavra').value.trim(), s = $('novoSig').value.trim();
+  if(!p || !s) return alert('Escreve a palavra e o significado.');
+  db.ref('dicionario').push({lingua:l, palavra:p.slice(0,40), sig:s.slice(0,80), por:nome})
+    .then(()=>{ $('novaPalavra').value=''; $('novoSig').value=''; })
+    .catch(()=>alert('Não foi possível guardar. Verifica as regras do Firebase.'));
+}
+
+/* ---------- DESAFIO ---------- */
+function iniciarDesafio(){
+  db.ref('ranking/'+uid+'/pontos').once('value').then(s=>{
+    pontos = s.val() || 0; $('meusPontos').textContent = pontos;
+  }).catch(()=>{});
+  db.ref('ranking').orderByChild('pontos').limitToLast(10).on('value', snap=>{
+    const l = []; snap.forEach(c=>{ l.push(c.val()); }); l.reverse();
+    $('ranking').innerHTML = l.map((r,i)=>
+      `<div class="rank"><span>${['🥇','🥈','🥉'][i]||(i+1)+'.'} ${esc(r.nome)} <small style="color:#8696a0">${esc(r.curso||'')}</small></span><b>${r.pontos}</b></div>`
+    ).join('') || '<p class="aviso">Ninguém jogou ainda. Sê o primeiro!</p>';
+  });
+  novaPergunta();
+}
+
+function novaPergunta(){
+  respondido = false;
+  const q = BASE[Math.floor(Math.random()*BASE.length)];
+  certa = q[2];
+  const outras = [...new Set(BASE.map(w=>w[2]).filter(m=>m!==certa))].sort(()=>Math.random()-.5).slice(0,3);
+  const ops = [certa, ...outras].sort(()=>Math.random()-.5);
+  $('pergunta').innerHTML = 'O que significa <span style="color:var(--dourado)">'+esc(q[1])+'</span> em '+esc(q[0])+'?';
+  $('opcoes').innerHTML = '';
+  ops.forEach(o=>{
+    const b = document.createElement('button');
+    b.className = 'opt'; b.textContent = o; b.onclick = ()=>responder(b,o);
+    $('opcoes').appendChild(b);
+  });
+}
+
+function responder(b, o){
+  if(respondido) return;
+  respondido = true;
+  if(o === certa){
+    b.classList.add('ok'); seq++;
+    const ganho = 10 + Math.min(seq-1,5)*2;
+    pontos += ganho;
+    if(navigator.vibrate) navigator.vibrate(60);
+    if(db) db.ref('ranking/'+uid).transaction(c=>({nome, curso:cursoAtual, pontos:((c&&c.pontos)||0)+ganho}));
+  }else{
+    b.classList.add('no'); seq = 0;
+    [...$('opcoes').children].forEach(x=>{ if(x.textContent===certa) x.classList.add('ok'); });
+  }
+  $('meusPontos').textContent = pontos;
+  $('seqTxt').textContent = 'Sequência: '+seq+(seq>=3?' 🔥':'');
+  setTimeout(novaPergunta, 1300);
+}
+
+/* ---------- ABAS E CONFIG ---------- */
+function trocarTab(tab, el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.painel').forEach(p=>{p.classList.remove('active');p.style.display='';});
+  el.classList.add('active');
+  $(tab).classList.add('active');
+}
+
+function mudarTema(noturno){
+  document.body.classList.toggle('claro', !noturno);
+  gravarLS('tema', noturno);
+}
+
+function salvarConfig(){
+  gravarLS('som', $('somMsg').checked);
+  gravarLS('vibrar', $('vibrar').checked);
+  gravarLS('idioma', $('idiomaSelect').value);
+}
+
+function carregarConfig(){
+  const tema = lerLS('tema','true') !== 'false';
+  $('temaSwitch').checked = tema;
+  $('somMsg').checked = lerLS('som','true') !== 'false';
+  $('vibrar').checked = lerLS('vibrar','false') === 'true';
+  $('idiomaSelect').value = lerLS('idioma','pt-ao');
+  $('statsMsg').textContent = lerLS('statsMsg','0');
+  $('statsUltimo').textContent = new Date().toLocaleString('pt-AO');
+  mudarTema(tema);
+}
+
+// Sair: termina a sessão mas GUARDA a conta, que aparece como "Registado"
+function sair(){
+  if(confirm("Queres mesmo sair?")){
+    try{ firebase.auth().signOut().finally(()=>location.reload()); }
+    catch(e){ location.reload(); }
+  }
+}
+
+window.addEventListener('load', ()=>{
+  mudarTema(lerLS('tema','true') !== 'false');
+  mostrarTelaInicial();
+});
+</script>
+<script src="extras.js"></script>
+</body>
+</html>
