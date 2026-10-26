@@ -474,3 +474,39 @@ window.abrirApp=async function(...a){
   add('link',{rel:'apple-touch-icon',href:'icon-192.png'});
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
+
+/* ========== 6. AVISO "NOVA VERSÃO" + botão Atualizar (só na versão online) ========== */
+(function(){
+  if(location.protocol!=='https:')return;
+  let atual=null;
+  async function verificar(){
+    try{
+      const r=await fetch('versao.json?t='+Date.now(),{cache:'no-store'});
+      if(!r.ok)return;
+      const d=await r.json();
+      if(atual===null){atual=d.v;return;}
+      if(d.v!==atual)aviso(d);
+    }catch(e){}
+  }
+  function aviso(d){
+    if(document.getElementById('avisoVersao'))return;
+    const b=document.createElement('div');b.id='avisoVersao';
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:120;background:#ffb800;color:#000;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top,0px));display:flex;gap:10px;align-items:center;font-size:14px;box-shadow:0 2px 10px #0008';
+    const t=document.createElement('div');t.style.flex='1';
+    t.textContent='🔄 Nova versão disponível'+(d.nota?': '+String(d.nota).slice(0,90):'');
+    const bt=document.createElement('button');bt.textContent='Atualizar';
+    bt.style.cssText='background:#0a0f1a;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer';
+    bt.onclick=async()=>{
+      bt.textContent='A atualizar…';
+      try{
+        if('caches' in window){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}
+        if('serviceWorker' in navigator){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()));}
+      }catch(e){}
+      location.reload();
+    };
+    b.append(t,bt);document.body.appendChild(b);
+  }
+  verificar();
+  setInterval(verificar,300000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)verificar();});
+})();
