@@ -475,38 +475,78 @@ window.abrirApp=async function(...a){
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 
-/* ========== 6. AVISO "NOVA VERSÃO" + botão Atualizar (só na versão online) ========== */
+/* ========== 6. ATUALIZAÇÃO AUTOMÁTICA (só na versão online) ========== */
 (function(){
   if(location.protocol!=='https:')return;
-  let atual=null;
+  let atual=null,pendente=null,adiado=0,contando=false;
+  const campos=()=>[...document.querySelectorAll('input[type=text],input[type=password],input[type=email],input:not([type]),textarea')].filter(e=>e.offsetParent!==null);
+  const escrevendo=()=>campos().some(e=>e.value.trim());
+  function ocupado(){
+    const a=document.activeElement;
+    if(a&&['INPUT','TEXTAREA','SELECT'].includes(a.tagName))return true;
+    const aj=document.getElementById('ajPainel');
+    return escrevendo()||!!document.getElementById('menuMsg')||!!(aj&&aj.style.display==='flex');
+  }
+  async function aplicar(){
+    try{
+      if('caches' in window){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}
+      if('serviceWorker' in navigator){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()));}
+    }catch(e){}
+    location.reload();
+  }
   async function verificar(){
     try{
       const r=await fetch('versao.json?t='+Date.now(),{cache:'no-store'});
       if(!r.ok)return;
       const d=await r.json();
       if(atual===null){atual=d.v;return;}
-      if(d.v!==atual)aviso(d);
+      if(d.v!==atual){pendente=d;tentar();}
     }catch(e){}
   }
-  function aviso(d){
-    if(document.getElementById('avisoVersao'))return;
-    const b=document.createElement('div');b.id='avisoVersao';
+  function tentar(){
+    if(!pendente||contando||Date.now()<adiado)return;
+    if(ocupado()){setTimeout(tentar,20000);return;}
+    contagem();
+  }
+  function contagem(){
+    if(contando)return;
+    contando=true;
+    const nota=pendente&&pendente.nota?' · '+String(pendente.nota).slice(0,70):'';
+    const b=document.createElement('div');
     b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:120;background:#ffb800;color:#000;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top,0px));display:flex;gap:10px;align-items:center;font-size:14px;box-shadow:0 2px 10px #0008';
     const t=document.createElement('div');t.style.flex='1';
-    t.textContent='🔄 Nova versão disponível'+(d.nota?': '+String(d.nota).slice(0,90):'');
-    const bt=document.createElement('button');bt.textContent='Atualizar';
+    const bt=document.createElement('button');bt.textContent='Depois';
     bt.style.cssText='background:#0a0f1a;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer';
-    bt.onclick=async()=>{
-      bt.textContent='A atualizar…';
-      try{
-        if('caches' in window){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}
-        if('serviceWorker' in navigator){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()));}
-      }catch(e){}
-      location.reload();
-    };
     b.append(t,bt);document.body.appendChild(b);
+    let n=5;
+    const msg=()=>{t.textContent='🔄 A atualizar para a nova versão em '+n+'s'+nota;};
+    msg();
+    const iv=setInterval(()=>{n--;if(n<=0){clearInterval(iv);aplicar();return;}msg();},1000);
+    bt.onclick=()=>{clearInterval(iv);b.remove();contando=false;adiado=Date.now()+600000;setTimeout(tentar,600000);};
   }
   verificar();
   setInterval(verificar,300000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)verificar();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden)return;
+    verificar();
+    if(pendente&&!escrevendo())contagem();
+  });
+})();
+
+/* ========== 7. MANTER A SESSÃO (para a atualização não pedir a senha outra vez) ========== */
+(function(){
+  function iniciar(){
+    try{
+      initFB();
+      let primeiro=true;
+      firebase.auth().onAuthStateChanged(async u=>{
+        if(!primeiro)return;primeiro=false;
+        if(!u||!u.emailVerified)return;
+        const c=lerConta();
+        try{await abrirApp(u,lerLS('apiKey','gsk_servidor'),c?{nome:c.nome,curso:c.curso}:undefined);}catch(e){}
+      });
+    }catch(e){}
+  }
+  if(document.readyState==='complete')iniciar();
+  else window.addEventListener('load',()=>setTimeout(iniciar,0));
 })();
