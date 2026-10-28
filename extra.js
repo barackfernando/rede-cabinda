@@ -327,10 +327,11 @@ window.carregarSala=function(sala,cid){
     const q=d.querySelector('.cit');
     if(q){q.onclick=()=>irPara(cid,m.resp.k);const qi=d.querySelector('.qimg'),o=cache[m.resp.k];if(qi){if(o&&o.img&&OKIMG.test(o.img))qi.src=o.img;else qi.remove();}}
     const f=d.querySelector('.fotoMsg');if(f){f.src=m.img;f.onclick=()=>ver(m.img,m.full?s.key:null);}
-    seg(d.querySelector('.bubble'),()=>menu(sala,s.key,m,minha));
+    seg(d.querySelector('.bubble'),()=>(window.menuMsg||menu)(sala,s.key,m,minha,cid));
     if(!minha&&m.hora>inicio){
       if($('somMsg').checked)tocarSom();
       if($('vibrar').checked&&navigator.vibrate)navigator.vibrate(200);
+      if(window.notificarMsg)window.notificarMsg(sala,cid,m);
     }
   },()=>addMsg(cid,'Sistema','⚠️ Sem permissão para ler. Confirma o email ou a conta pode estar suspensa.','bot'));
   ref.on('child_removed',s=>{const e=$(cid).querySelector('[data-k="'+s.key+'"]');if(e)e.remove();});
@@ -398,12 +399,13 @@ function ferramentas(inputId,salaFn){
 }
 ferramentas('texto',()=>'Geral');
 ferramentas('textoCurso',()=>salaCurso);
+window._rc={definirResp,apagar,enviar,ver};
 })();
 
 /* ========== 4. ASSISTENTE FLUTUANTE: botão 🤖 no canto, em todas as abas ========== */
 (function(){
 const $=id=>document.getElementById(id);
-const GUIA='Contexto da app Rede Cabinda Pro (usa só isto para explicar a app): abas Geral e Curso (chat; toca 📷 para foto e 😊 para emojis; segura numa mensagem para Responder, Copiar, Denunciar ou Apagar a tua), IA (perguntas), Dicionário (palavras em Kikongo e outras línguas; podes ensinar palavras), Desafio (quiz de palavras com pontos e ranking), África (cultura), Aprender (cartões por tema), Config (tema, som, idioma). Responde em no máximo 5 frases curtas, passo a passo, sem inventar funções. Se pedirem Kikongo, ensina palavras simples e avisa quando não tiveres certeza.';
+const GUIA='Contexto da app Rede Cabinda Pro (usa só isto para explicar a app): abas Geral e Curso (chat; toca 📷 para foto e 😊 para emojis; segura numa mensagem para Reagir, Responder, Reencaminhar, Favoritar, Copiar, Denunciar ou Apagar a tua), IA (perguntas), Dicionário (palavras em Kikongo e outras línguas; podes ensinar palavras), Desafio (quiz de palavras com pontos e ranking), África (cultura), Config (tema, som, idioma). Responde em no máximo 5 frases curtas, passo a passo, sem inventar funções. Se pedirem Kikongo, ensina palavras simples e avisa quando não tiveres certeza.';
 const CHIPS=[['❓ Como uso a app?','Como uso a app? Explica as abas.'],['📖 Ensina-me Kikongo','Ensina-me 5 palavras simples em Kikongo.'],['🏆 Como ganho pontos?','Como ganho pontos no Desafio?'],['📷 Como mando fotos?','Como mando fotos e respondo a mensagens?']];
 let hist=[],ocupado=false;
 
@@ -473,6 +475,333 @@ window.abrirApp=async function(...a){
   add('meta',{name:'theme-color',content:'#0a0f1a'});
   add('link',{rel:'apple-touch-icon',href:'icon-192.png'});
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+
+/* ========== 8. AVISOS, REAÇÕES, REENCAMINHAR, "A ESCREVER…", ONLINE, DESAFIO+, IA MÓVEL ========== */
+(function(){
+const $=id=>document.getElementById(id);
+const TS=()=>firebase.database.ServerValue.TIMESTAMP;
+const REAC=['👍','❤️','😂','😮','😢','🙏'];
+const cidDe=sala=>sala==='Geral'?'msgs':'msgsCurso';
+let ativa='chat',off=0,pronto=false;
+
+// retirar a aba Aprender
+const ap=$('aprender');if(ap)ap.remove();
+document.querySelectorAll('.tab').forEach(t=>{if(/Aprender/.test(t.textContent))t.remove();});
+
+const st=document.createElement('style');
+st.textContent='.badge{background:#ff4757;color:#fff;border-radius:10px;font-size:11px;padding:1px 6px;margin-left:4px}.reac{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.reac span{background:#0003;border:1px solid transparent;border-radius:12px;padding:2px 8px;font-size:12px;cursor:pointer}.reac span.eu{border-color:var(--dourado)}.escrevendo{font-size:12px;color:var(--azul);padding:2px 14px;background:var(--bg);min-height:18px}';
+document.head.appendChild(st);
+
+/* --- janela de opções genérica --- */
+function sheet(titulo,itens,topo){
+  const v=$('menuMsg');if(v)v.remove();
+  const w=document.createElement('div');w.id='menuMsg';
+  w.style.cssText='position:fixed;inset:0;background:#0008;z-index:98;display:flex;align-items:flex-end';
+  const c=document.createElement('div');
+  c.style.cssText='width:100%;max-width:900px;margin:0 auto;background:var(--bg2);border-radius:18px 18px 0 0;padding:14px;max-height:80vh;overflow-y:auto';
+  w.onclick=e=>{if(e.target===w)w.remove();};
+  if(titulo){const h=document.createElement('div');h.style.cssText='font-weight:700;color:var(--dourado);margin-bottom:8px';h.textContent=titulo;c.appendChild(h);}
+  if(topo)c.appendChild(topo);
+  itens.forEach(([t,f,cl])=>{
+    const b=document.createElement('button');b.className='btn '+(cl||'alt');b.textContent=t;
+    b.onclick=async()=>{w.remove();if(f){try{await f();}catch(e){alert('Não foi possível: '+e.message);}}};
+    c.appendChild(b);
+  });
+  w.appendChild(c);document.body.appendChild(w);
+}
+
+/* --- avisos: números nas abas, mensagem no topo, aviso do sistema --- */
+const nao={chat:0,curso:0};
+const aba=id=>[...document.querySelectorAll('.tab')].find(t=>(t.getAttribute('onclick')||'').includes("'"+id+"'"));
+function badge(id){
+  const a=aba(id);if(!a)return;
+  let b=a.querySelector('.badge');
+  if(!nao[id]){if(b)b.remove();return;}
+  if(!b){b=document.createElement('span');b.className='badge';a.appendChild(b);}
+  b.textContent=nao[id]>99?'99+':nao[id];
+}
+const _tt=window.trocarTab;
+window.trocarTab=function(tab,el){_tt(tab,el);ativa=tab;if(tab in nao){nao[tab]=0;badge(tab);}};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ativa in nao){nao[ativa]=0;badge(ativa);}});
+function toast(n,t,id){
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:12px;right:12px;max-width:600px;margin:0 auto;background:var(--card);color:var(--text);border:2px solid var(--dourado);border-radius:14px;padding:10px 14px;z-index:110;font-size:14px;cursor:pointer;box-shadow:0 4px 14px #0008;overflow:hidden;white-space:nowrap;text-overflow:ellipsis';
+  d.textContent='💬 '+n+': '+t.slice(0,80);
+  d.onclick=()=>{const a=aba(id);if(a)a.click();d.remove();};
+  document.body.appendChild(d);setTimeout(()=>d.remove(),4000);
+}
+function sistema(titulo,corpo,tag){
+  if(!('Notification' in window)||Notification.permission!=='granted'||lerLS('notifSis','false')!=='true')return;
+  try{
+    const o={body:corpo.slice(0,100),icon:'icon-192.png',tag:tag};
+    if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration)navigator.serviceWorker.getRegistration().then(r=>r?r.showNotification(titulo,o):new Notification(titulo,o)).catch(()=>{});
+    else new Notification(titulo,o);
+  }catch(e){}
+}
+window.notificarMsg=function(sala,cid,m){
+  const id=cid==='msgs'?'chat':'curso';
+  const tx=(m.img&&(!m.texto||m.texto==='📷 Foto'))?'📷 Foto':String(m.texto||'');
+  if(document.hidden)sistema(m.nome+(sala==='Geral'?' · Geral':' · Curso'),tx,sala);
+  if(ativa!==id||document.hidden){
+    nao[id]++;badge(id);
+    if(!document.hidden)toast(m.nome,tx,id);
+  }
+};
+const grid=document.querySelector('#config .config-grid');
+if(grid){
+  const c=document.createElement('div');c.className='config-card';
+  c.innerHTML='<h3>🔔 Avisos no telemóvel</h3><div class="switch"><span>Avisar com a app em segundo plano</span><input type="checkbox" id="notifSis"></div><p class="aviso">Avisa com a app aberta ou em segundo plano. Para avisar com a app totalmente fechada é preciso um serviço de notificações (fase seguinte).</p>';
+  grid.insertBefore(c,grid.children[2]||null);
+  $('notifSis').checked=lerLS('notifSis','false')==='true'&&('Notification' in window)&&Notification.permission==='granted';
+  $('notifSis').onchange=async function(){
+    if(this.checked){
+      if(!('Notification' in window)){alert('Este aparelho não suporta avisos.');this.checked=false;return;}
+      const p=await Notification.requestPermission();
+      if(p!=='granted'){this.checked=false;gravarLS('notifSis','false');alert('Permissão negada. Ativa nas definições do Chrome.');return;}
+    }
+    gravarLS('notifSis',this.checked);
+  };
+}
+
+/* --- reações --- */
+const rea={};
+function pintar(sala){
+  const c=$(cidDe(sala));if(!c)return;
+  c.querySelectorAll('.msg[data-k]').forEach(d=>{
+    const k=d.dataset.k,bb=d.querySelector('.bubble');if(!bb)return;
+    let r=bb.querySelector('.reac');
+    const mp=(rea[sala]||{})[k]||{},cont={};
+    Object.values(mp).forEach(e=>{cont[e]=(cont[e]||0)+1;});
+    const ks=Object.keys(cont);
+    if(!ks.length){if(r)r.remove();return;}
+    if(!r){r=document.createElement('div');r.className='reac';bb.appendChild(r);}
+    r.innerHTML='';
+    ks.forEach(e=>{const s=document.createElement('span');s.textContent=e+' '+cont[e];if(mp[uid]===e)s.className='eu';s.onclick=()=>reagir(sala,k,e);r.appendChild(s);});
+  });
+}
+function reagir(sala,k,e){
+  const ref=db.ref('reacoes/'+sala+'/'+k+'/'+uid);
+  const atual=((rea[sala]||{})[k]||{})[uid];
+  (atual===e?ref.remove():ref.set(e)).catch(()=>alert('Não foi possível reagir.'));
+}
+[['msgs','Geral'],['msgsCurso',null]].forEach(([cid,s])=>{
+  const c=$(cid);if(c)new MutationObserver(()=>pintar(s||salaCurso)).observe(c,{childList:true});
+});
+
+/* --- favoritas, reencaminhar, opções da mensagem --- */
+const favs=()=>{try{return JSON.parse(lerLS('favs','[]'));}catch(e){return[];}};
+const txDe=m=>(m.img&&(!m.texto||m.texto==='📷 Foto'))?'📷 Foto':String(m.texto||'');
+function favoritar(key,m){
+  const l=favs();if(l.some(x=>x.k===key)){alert('Já está nas favoritas.');return;}
+  l.push({k:key,n:m.nome,t:txDe(m).slice(0,300)});gravarLS('favs',JSON.stringify(l.slice(-100)));alert('⭐ Guardada nas favoritas.');
+}
+function verFavs(){
+  const l=favs().reverse();
+  const it=l.map(x=>[x.n+': '+x.t.slice(0,60),()=>navigator.clipboard.writeText(x.t).then(()=>alert('Texto copiado.')),'alt']);
+  if(l.length)it.push(['🗑️ Limpar favoritas',()=>gravarLS('favs','[]'),'danger']);
+  it.push(['Fechar',null,'alt']);
+  sheet(l.length?'⭐ Favoritas (toca para copiar)':'⭐ Ainda não tens favoritas',it);
+}
+function partilhar(t){
+  if(navigator.share)navigator.share({text:t}).catch(()=>{});
+  else navigator.clipboard.writeText(t).then(()=>alert('Texto copiado.'));
+}
+function reencaminhar(sala,key,m){
+  const tx=txDe(m),corpo=('↪️ '+m.nome+': '+tx).slice(0,500);
+  const para=async dest=>{
+    let full=null;
+    if(m.img&&m.full){const s=await db.ref('fotos/'+key+'/d').once('value');full=s.val();}
+    window._rc.enviar(dest,corpo,m.img||null,full||null);
+  };
+  sheet('↪️ Reencaminhar para…',[
+    ['💬 Sala Geral',()=>para('Geral')],
+    ['👨‍🎓 Sala do meu curso',()=>para(salaCurso)],
+    ['🤖 Perguntar à IA sobre isto',()=>{const f=$('fabIA');if(f)f.click();setTimeout(()=>{$('ajTxt').value='Explica isto: “'+tx.slice(0,400)+'”';$('ajEnv').click();},150);}],
+    ['📤 Partilhar noutra app',()=>partilhar(corpo)],
+    ['⭐ Guardar nas favoritas',()=>favoritar(key,m)],
+    ['Cancelar',null]
+  ]);
+}
+window.menuMsg=function(sala,key,m,minha){
+  const linha=document.createElement('div');linha.style.cssText='display:flex;justify-content:space-around;margin-bottom:8px';
+  REAC.forEach(e=>{const b=document.createElement('button');b.className='icon-btn';b.textContent=e;b.onclick=()=>{const v=$('menuMsg');if(v)v.remove();reagir(sala,key,e);};linha.appendChild(b);});
+  const it=[
+    ['↩️ Responder',()=>window._rc.definirResp(sala,key,m)],
+    ['↪️ Reencaminhar',()=>reencaminhar(sala,key,m)],
+    ['⭐ Favoritar',()=>favoritar(key,m)]
+  ];
+  if(m.texto&&navigator.clipboard)it.push(['📋 Copiar texto',()=>navigator.clipboard.writeText(m.texto)]);
+  if(minha)it.push(['🗑️ Apagar a minha mensagem',()=>window._rc.apagar(sala,key,m),'danger']);
+  else it.push(['⚠️ Denunciar',()=>db.ref('denuncias/'+key+'_'+uid).set({sala,key,autor:m.uid||'',nome:m.nome,texto:txDe(m).slice(0,200),hora:TS()}).then(()=>alert('Denúncia enviada. Obrigado!'))]);
+  db.ref('admins/'+uid).once('value').then(a=>{
+    if(a.val()===true&&!minha){
+      it.push(['🛡️ Apagar (dono)',()=>window._rc.apagar(sala,key,m),'danger']);
+      if(m.uid)it.push(['⛔ Banir '+m.nome,async()=>{if(confirm('Banir '+m.nome+'?'))await db.ref('banidos/'+m.uid).set({nome:m.nome,hora:TS()});},'danger']);
+    }
+  }).catch(()=>{}).then(()=>{it.push(['Cancelar',null]);sheet('',it,linha);});
+};
+
+/* --- barra de procurar e favoritas em cada sala --- */
+[['chat','msgs'],['curso','msgsCurso']].forEach(([pid,cid])=>{
+  const p=$(pid),m=$(cid);if(!p||!m)return;
+  const bar=document.createElement('div');bar.style.cssText='display:flex;gap:8px;align-items:center;padding:6px 12px;background:var(--bg)';
+  bar.innerHTML='<input placeholder="🔍 Procurar nesta sala..." style="margin:0;padding:8px 14px;font-size:14px;border-radius:20px"><button class="icon-btn" style="width:38px;height:38px;font-size:16px">⭐</button>';
+  p.insertBefore(bar,m);
+  bar.querySelector('input').oninput=function(){
+    const q=this.value.trim().toLowerCase();
+    m.querySelectorAll('.msg').forEach(d=>{d.style.display=(!q||d.textContent.toLowerCase().includes(q))?'':'none';});
+  };
+  bar.querySelector('button').onclick=verFavs;
+});
+
+/* --- "está a escrever…" --- */
+function escrever8(inputId,salaFn){
+  const inp=$(inputId);if(!inp)return()=>{};
+  const area=inp.parentElement,info=document.createElement('div');info.className='escrevendo';
+  area.parentElement.insertBefore(info,area);
+  let ultimo=0,tm,dados={};
+  const ref=()=>db.ref('digitando/'+salaFn()+'/'+uid);
+  inp.addEventListener('input',()=>{
+    if(!db||!uid)return;
+    const agora=Date.now();
+    if(inp.value&&agora-ultimo>2500){ultimo=agora;const r=ref();r.set({n:nome,t:TS()}).catch(()=>{});r.onDisconnect().remove();}
+    clearTimeout(tm);tm=setTimeout(()=>{ref().remove().catch(()=>{});ultimo=0;},4000);
+  });
+  function mostrar(){
+    const agora=Date.now()+off;
+    const ns=Object.entries(dados).filter(([u,x])=>u!==uid&&x&&agora-x.t<6000).map(([u,x])=>x.n);
+    info.textContent=ns.length?(ns.length===1?ns[0]+' está a escrever…':ns.slice(0,2).join(', ')+(ns.length>2?' e outros':'')+' estão a escrever…'):'';
+  }
+  return function ouvir(){
+    db.ref('digitando/'+salaFn()).on('value',sn=>{dados=sn.val()||{};mostrar();});
+    setInterval(mostrar,2000);
+  };
+}
+const ouvirG=escrever8('texto',()=>'Geral'),ouvirC=escrever8('textoCurso',()=>salaCurso);
+
+/* --- Desafio melhorado --- */
+let modo='km',vidas=3,rondaPts=0,melhor=0,ac=0,tot=0,fim=false,bloq=false,tempo=60,tmr=null,cert8=[];
+const MODOS=[['km','🇦🇴 Kikongo → PT'],['pk','🔄 PT → Kikongo'],['rel','⏱️ Relâmpago 60s']];
+const dp=document.querySelector('#desafio .dic');
+if(dp){
+  dp.innerHTML='<div class="dia"><small>Teus pontos</small><b id="meusPontos">0</b><span id="seqTxt">Sequência: 0</span></div><div id="dModos" style="display:flex;gap:6px;margin-bottom:8px"></div><div id="dInfo" style="display:flex;justify-content:space-between;font-size:14px;margin:6px 2px"></div><div id="pergunta" style="font-size:18px;font-weight:700;text-align:center;margin:10px 0"></div><div id="opcoes"></div><div id="dFim" class="item" style="display:none;text-align:center"></div><h3 class="sec">🏅 Ranking geral</h3><div id="ranking"></div><h3 class="sec">🏫 Ranking por curso</h3><div id="rankCursos"></div>';
+}
+function modos(){
+  const d=$('dModos');if(!d)return;d.innerHTML='';
+  MODOS.forEach(([k,t])=>{
+    const b=document.createElement('button');b.textContent=t;
+    b.style.cssText='flex:1;padding:10px 4px;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--dourado);background:'+(k===modo?'var(--dourado)':'var(--card)')+';color:'+(k===modo?'#000':'var(--text)');
+    b.onclick=()=>{modo=k;comecar();};d.appendChild(b);
+  });
+}
+function info(){
+  const d=$('dInfo');if(!d)return;d.innerHTML='';
+  const a=document.createElement('span'),b=document.createElement('span'),v=Math.max(vidas,0);
+  a.textContent=modo==='rel'?'⏱️ '+tempo+'s':'❤️'.repeat(v)+'🖤'.repeat(3-v);
+  b.textContent='Ronda: '+rondaPts+' pts · '+(tot?Math.round(ac*100/tot):0)+'% certas';
+  d.append(a,b);
+}
+function comecar(){
+  clearInterval(tmr);vidas=3;rondaPts=0;melhor=0;ac=0;tot=0;tempo=60;fim=false;seq=0;
+  const f=$('dFim');if(f)f.style.display='none';
+  $('seqTxt').textContent='Sequência: 0';
+  modos();info();
+  if(modo==='rel')tmr=setInterval(()=>{tempo--;info();if(tempo<=0)terminar();},1000);
+  window.novaPergunta();
+}
+function terminar(){
+  if(fim)return;fim=true;clearInterval(tmr);
+  const rec=parseInt(lerLS('recorde8','0')),novo=rondaPts>rec;if(novo)gravarLS('recorde8',rondaPts);
+  const f=$('dFim');f.style.display='block';f.innerHTML='';
+  const t=document.createElement('div');
+  t.textContent='🏁 Fim da ronda! '+rondaPts+' pontos · melhor sequência '+melhor+(novo&&rondaPts>0?' · 🏆 Novo recorde!':' · recorde '+Math.max(rec,rondaPts));
+  const bt=document.createElement('button');bt.className='btn';bt.textContent='🔁 Jogar outra vez';bt.onclick=comecar;
+  f.append(t,bt);
+  [...$('opcoes').children].forEach(x=>{x.disabled=true;});
+}
+window.novaPergunta=function(){
+  if(!pronto||!$('opcoes')||fim)return;
+  respondido=false;bloq=false;
+  const emb=a=>a.sort(()=>Math.random()-.5);
+  let ops;
+  if(modo==='pk'){
+    const pool=BASE.filter(e=>e[0]==='Kikongo'),q=pool[Math.floor(Math.random()*pool.length)];
+    cert8=pool.filter(e=>e[2]===q[2]).map(e=>e[1]);
+    const er=emb([...new Set(pool.filter(e=>!e[2].includes(q[2])&&!q[2].includes(e[2])).map(e=>e[1]))]).slice(0,3);
+    ops=emb([q[1],...er]);
+    $('pergunta').innerHTML='Como se diz <span style="color:var(--dourado)">“'+esc(q[2])+'”</span> em Kikongo?';
+  }else{
+    const q=BASE[Math.floor(Math.random()*BASE.length)];
+    cert8=[q[2]];
+    const er=emb([...new Set(BASE.map(e=>e[2]).filter(a=>!a.includes(q[2])&&!q[2].includes(a)))]).slice(0,3);
+    ops=emb([q[2],...er]);
+    $('pergunta').innerHTML='O que significa <span style="color:var(--dourado)">'+esc(q[1])+'</span> em '+esc(q[0])+'?';
+  }
+  certa=cert8[0];
+  $('opcoes').innerHTML='';
+  ops.forEach(o=>{const b=document.createElement('button');b.className='opt';b.textContent=o;b.onclick=()=>window.responder(b,o);$('opcoes').appendChild(b);});
+  info();
+};
+window.responder=function(b,o){
+  if(respondido||fim||bloq)return;
+  respondido=true;bloq=true;tot++;
+  if(cert8.includes(o)){
+    b.classList.add('ok');seq++;ac++;melhor=Math.max(melhor,seq);
+    const g=10+Math.min(seq-1,5)*2;pontos+=g;rondaPts+=g;
+    if(navigator.vibrate)navigator.vibrate(60);
+    db.ref('ranking/'+uid).set({nome,curso:cursoAtual,pontos,ultimo:TS()}).catch(()=>{});
+  }else{
+    b.classList.add('no');seq=0;
+    [...$('opcoes').children].forEach(x=>{if(cert8.includes(x.textContent))x.classList.add('ok');});
+    if(modo!=='rel')vidas--;
+  }
+  $('meusPontos').textContent=pontos;
+  $('seqTxt').textContent='Sequência: '+seq+(seq>=3?' 🔥':'');
+  info();
+  if(modo!=='rel'&&vidas<=0){setTimeout(terminar,1000);return;}
+  setTimeout(()=>{if(!fim)window.novaPergunta();},1300);
+};
+
+/* --- IA móvel: arrastar o botão 🤖 --- */
+(function(){
+  const f=$('fabIA');if(!f)return;
+  let moveu=false,ar=false,sx=0,sy=0,ox=0,oy=0;
+  const por=(x,y)=>{f.style.left=Math.min(Math.max(0,x),innerWidth-56)+'px';f.style.top=Math.min(Math.max(0,y),innerHeight-56)+'px';f.style.right='auto';f.style.bottom='auto';};
+  try{const p=JSON.parse(lerLS('fabPos','null'));if(p)por(p.x,p.y);}catch(e){}
+  f.addEventListener('touchstart',e=>{const t=e.touches[0],r=f.getBoundingClientRect();sx=t.clientX;sy=t.clientY;ox=r.left;oy=r.top;moveu=false;ar=true;},{passive:true});
+  f.addEventListener('touchmove',e=>{
+    if(!ar)return;const t=e.touches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+    if(!moveu&&Math.hypot(dx,dy)<8)return;
+    moveu=true;e.preventDefault();por(ox+dx,oy+dy);
+  },{passive:false});
+  f.addEventListener('touchend',()=>{ar=false;if(moveu)gravarLS('fabPos',JSON.stringify({x:parseInt(f.style.left),y:parseInt(f.style.top)}));});
+  f.addEventListener('click',e=>{if(moveu){e.stopImmediatePropagation();e.preventDefault();moveu=false;}},true);
+})();
+
+/* --- ligar tudo depois do login --- */
+const _a8=window.abrirApp;
+window.abrirApp=async function(...a){
+  await _a8.apply(this,a);
+  if(!db||!uid||window.__b8)return;
+  window.__b8=true;
+  db.ref('.info/serverTimeOffset').on('value',s=>{off=s.val()||0;});
+  ['Geral',salaCurso].forEach(s=>db.ref('reacoes/'+s).orderByKey().limitToLast(120).on('value',sn=>{rea[s]=sn.val()||{};pintar(s);}));
+  ouvirG();ouvirC();
+  const nOn=document.createElement('span');nOn.style.cssText='margin-left:6px;cursor:pointer;font-weight:700';
+  const so=$('statusOnline');if(so)so.after(nOn);
+  let lista={};
+  nOn.onclick=()=>sheet('👥 Online agora ('+Object.keys(lista).length+')',[...Object.values(lista).map(x=>[String(x.n),null,'alt']),['Fechar',null,'alt']]);
+  db.ref('.info/connected').on('value',s=>{if(!s.val())return;const r=db.ref('presenca/'+uid);r.onDisconnect().remove();r.set({n:nome,t:TS()}).catch(()=>{});});
+  db.ref('presenca').on('value',s=>{lista=s.val()||{};nOn.textContent=' · 👥 '+Object.keys(lista).length;});
+  db.ref('ranking').orderByChild('pontos').limitToLast(100).on('value',sn=>{
+    const soma={};sn.forEach(c=>{const v=c.val();if(v&&v.curso)soma[v.curso]=(soma[v.curso]||0)+(v.pontos||0);});
+    const l=Object.entries(soma).sort((x,y)=>y[1]-x[1]).slice(0,5),box=$('rankCursos');if(!box)return;box.innerHTML='';
+    l.forEach(([c,p],i)=>{const d=document.createElement('div');d.className='rank';const s=document.createElement('span');s.textContent=(['🥇','🥈','🥉'][i]||(i+1)+'.')+' '+c;const bb=document.createElement('b');bb.textContent=p;d.append(s,bb);box.appendChild(d);});
+    if(!l.length)box.innerHTML='<p class="aviso">Sem dados ainda.</p>';
+  });
+  pronto=true;comecar();
+};
 })();
 
 /* ========== 6. ATUALIZAÇÃO AUTOMÁTICA (só na versão online) ========== */
