@@ -514,7 +514,7 @@ function sheet(titulo,itens,topo){
 /* --- avisos: números nas abas, mensagem no topo, aviso do sistema --- */
 const nao={chat:0,curso:0};
 const aba=id=>[...document.querySelectorAll('.tab')].find(t=>(t.getAttribute('onclick')||'').includes("'"+id+"'"));
-function badge(id){
+function badge(id){return;
   const a=aba(id);if(!a)return;
   let b=a.querySelector('.badge');
   if(!nao[id]){if(b)b.remove();return;}
@@ -804,6 +804,83 @@ window.abrirApp=async function(...a){
 };
 })();
 
+/* ========== 11. NÚMEROS DE NOTIFICAÇÃO SEMPRE VISÍVEIS (Geral, Curso, IA, Dicionário, Admin) ========== */
+(function(){
+  const $=id=>document.getElementById(id),TIT=document.title;
+  const lerN=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v;}catch(e){return d;}};
+  const gravaN=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+  const n={chat:0,curso:0,ia:0,dicionario:0,admin:0},visto={chat:0,curso:0},maxH={chat:0,curso:0};
+  let ativa='chat',ultimaDic='',iniciado=false;
+  const aba=id=>[...document.querySelectorAll('.tab')].find(t=>(t.getAttribute('onclick')||'').includes("'"+id+"'"));
+  const ativo=id=>ativa===id&&!document.hidden;
+  const salaDe=id=>id==='chat'?'Geral':salaCurso;
+  function pintar(){
+    let tot=0;
+    Object.keys(n).forEach(id=>{
+      tot+=n[id];const a=aba(id);if(!a)return;
+      let b=a.querySelector('.bd2');
+      if(!n[id]){if(b)b.remove();return;}
+      if(!b){b=document.createElement('span');b.className='bd2';b.style.cssText='background:#ff4757;color:#fff;border-radius:10px;font-size:11px;padding:1px 6px;margin-left:4px;font-weight:700';a.appendChild(b);}
+      b.textContent=n[id]>99?'99+':n[id];
+    });
+    document.title=(tot?'('+tot+') ':'')+TIT;
+    try{if(navigator.setAppBadge){tot?navigator.setAppBadge(tot):navigator.clearAppBadge();}}catch(e){}
+  }
+  function lido(id){
+    if(id==='chat'||id==='curso'){n[id]=0;if(maxH[id]){visto[id]=maxH[id];gravaN('visto_'+uid+'_'+salaDe(id),String(maxH[id]));}}
+    else if(id==='ia')n.ia=0;
+    else if(id==='dicionario'){n.dicionario=0;if(ultimaDic)gravaN('dicVisto_'+uid,ultimaDic);}
+    pintar();
+  }
+  function ouvirSala(id){
+    const sala=salaDe(id),kv='visto_'+uid+'_'+sala,g=lerN(kv,null);
+    visto[id]=g===null?Date.now():parseInt(g);
+    if(g===null)gravaN(kv,String(visto[id]));
+    db.ref('msgs/'+sala).limitToLast(60).on('child_added',s=>{
+      const m=s.val();if(!m||!m.hora)return;
+      if(m.hora>maxH[id])maxH[id]=m.hora;
+      if(m.uid===uid||m.hora<=visto[id])return;
+      if(ativo(id)){visto[id]=m.hora;gravaN(kv,String(m.hora));}
+      else{n[id]++;pintar();}
+    });
+  }
+  function vigiarIA(){
+    const c=$('msgsIA');if(!c)return;
+    new MutationObserver(ms=>{
+      if(ativo('ia'))return;
+      ms.forEach(m=>{if(m.target.classList&&m.target.classList.contains('bubble')&&[...m.removedNodes].some(x=>x.classList&&x.classList.contains('loading')))n.ia++;});
+      pintar();
+    }).observe(c,{childList:true,subtree:true});
+  }
+  async function ouvirDic(){
+    const snap=await db.ref('dicionario').limitToLast(300).once('value');
+    let ult='',cont=0;const vis=lerN('dicVisto_'+uid,null);
+    snap.forEach(c=>{ult=c.key;const v=c.val();if(vis!==null&&c.key>vis&&v&&v.por!==nome)cont++;});
+    if(vis===null)gravaN('dicVisto_'+uid,ult);
+    ultimaDic=ult;n.dicionario=ativo('dicionario')?0:cont;pintar();
+    db.ref('dicionario').orderByKey().startAt(ult).on('child_added',s=>{
+      if(s.key===ult)return;ultimaDic=s.key;
+      const v=s.val();if(!v||v.por===nome)return;
+      if(ativo('dicionario'))gravaN('dicVisto_'+uid,s.key);else{n.dicionario++;pintar();}
+    });
+  }
+  function ouvirAdmin(){
+    db.ref('admins/'+uid).once('value').then(s=>{
+      if(s.val()!==true)return;
+      db.ref('denuncias').on('value',d=>{n.admin=d.numChildren();pintar();setTimeout(pintar,1500);});
+    }).catch(()=>{});
+  }
+  const _t=window.trocarTab;
+  window.trocarTab=function(tab,el){_t(tab,el);ativa=tab;lido(tab);};
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)lido(ativa);});
+  const _a=window.abrirApp;
+  window.abrirApp=async function(...a){
+    await _a.apply(this,a);
+    if(iniciado||!db||!uid)return;iniciado=true;
+    ouvirSala('chat');ouvirSala('curso');vigiarIA();ouvirDic().catch(()=>{});ouvirAdmin();pintar();
+  };
+})();
+
 /* ========== 6. ATUALIZAÇÃO AUTOMÁTICA (só na versão online) ========== */
 (function(){
   if(location.protocol!=='https:')return;
@@ -878,4 +955,16 @@ window.abrirApp=async function(...a){
   }
   if(document.readyState==='complete')iniciar();
   else window.addEventListener('load',()=>setTimeout(iniciar,0));
+})();
+
+/* ========== 10. LIMPEZA DE SEGURANÇA: a chave da Groq nunca fica no navegador ========== */
+(function(){
+  const RE=/gsk_(?!servidor\b)[A-Za-z0-9]{16,}/;
+  try{
+    [localStorage,sessionStorage].forEach(st=>{Object.keys(st).forEach(k=>{if(RE.test(st.getItem(k)||''))st.setItem(k,k==='apiKey'?'gsk_servidor':'');});});
+  }catch(e){}
+  ['kConta','kLogin','rKey'].forEach(i=>{
+    const e=document.getElementById(i);
+    if(e){e.type='hidden';e.value='gsk_servidor';e.setAttribute('autocomplete','off');e.removeAttribute('placeholder');}
+  });
 })();
