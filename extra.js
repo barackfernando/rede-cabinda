@@ -1,3 +1,4 @@
+window.__lite=(function(){try{return localStorage.getItem('lite')==='1';}catch(e){return false;}})();
 /* extras.js — Rede Cabinda Pro: aba Aprender + segurança. Carregar DEPOIS do script principal. */
 
 /* ========== 1. ABA 🎓 APRENDER ========== */
@@ -311,13 +312,13 @@ function menu(sala,key,m,minha){
 
 const OKIMG=/^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/;
 window.carregarSala=function(sala,cid){
-  const ref=db.ref('msgs/'+sala).limitToLast(60);
+  const ref=db.ref('msgs/'+sala).limitToLast(window.__lite?15:60);
   ref.on('child_added',s=>{
     const m=s.val();if(!m||(!m.texto&&!m.img))return;
     const minha=m.uid?m.uid===uid:m.nome===nome;
     const hora=new Date(m.hora).toLocaleTimeString('pt-AO',{hour:'2-digit',minute:'2-digit'});
-    const img=m.img&&OKIMG.test(m.img)?'<img class="fotoMsg" alt="foto" style="width:100%;max-width:200px;max-height:200px;object-fit:cover;border-radius:10px;display:block;margin:4px 0;cursor:pointer">':'';
-    const txt=(m.img&&m.texto==='📷 Foto')?'':esc(m.texto||'');
+    const img=!window.__lite&&m.img&&OKIMG.test(m.img)?'<img class="fotoMsg" alt="foto" style="width:100%;max-width:200px;max-height:200px;object-fit:cover;border-radius:10px;display:block;margin:4px 0;cursor:pointer">':'';
+    const txt=(m.img&&m.texto==='📷 Foto')?(window.__lite?'📷 Foto (Modo Lite)':''):esc(m.texto||'');
     let cit='';
     if(m.resp&&typeof m.resp==='object'&&/^[-\w]{1,40}$/.test(String(m.resp.k))){
       cit='<div class="cit" style="border-left:3px solid var(--dourado);background:#0003;border-radius:8px;padding:4px 8px;margin-bottom:4px;font-size:12px;cursor:pointer;overflow:hidden"><img class="qimg" alt="" style="float:right;width:34px;height:34px;object-fit:cover;border-radius:6px;margin-left:6px"><b>'+esc(String(m.resp.n||'').slice(0,30))+'</b><br>'+esc(String(m.resp.t||'').slice(0,100))+'</div>';
@@ -385,6 +386,7 @@ function ferramentas(inputId,salaFn){
   barra.style.cssText='display:none;flex-wrap:wrap;gap:6px;padding:8px 12px;background:var(--bg2);border-top:2px solid #222';
   EMOJIS.forEach(e=>{const b=document.createElement('button');b.className='icon-btn';b.textContent=e;b.onclick=()=>{inp.value+=e;inp.focus();};barra.appendChild(b);});
   foto.onclick=()=>file.click();
+  if(window.__lite)foto.style.display='none';
   emo.onclick=()=>{barra.style.display=barra.style.display==='none'?'flex':'none';};
   file.onchange=async()=>{
     const f=file.files[0];file.value='';if(!f)return;
@@ -674,7 +676,7 @@ function escrever8(inputId,salaFn){
     info.textContent=ns.length?(ns.length===1?ns[0]+' está a escrever…':ns.slice(0,2).join(', ')+(ns.length>2?' e outros':'')+' estão a escrever…'):'';
   }
   return function ouvir(){
-    db.ref('digitando/'+salaFn()).on('value',sn=>{dados=sn.val()||{};mostrar();});
+    if(!window.__lite)db.ref('digitando/'+salaFn()).on('value',sn=>{dados=sn.val()||{};mostrar();});
     setInterval(mostrar,2000);
   };
 }
@@ -792,8 +794,8 @@ window.abrirApp=async function(...a){
   const so=$('statusOnline');if(so)so.after(nOn);
   let lista={};
   nOn.onclick=()=>sheet('👥 Online agora ('+Object.keys(lista).length+')',[...Object.values(lista).map(x=>[String(x.n),null,'alt']),['Fechar',null,'alt']]);
-  db.ref('.info/connected').on('value',s=>{if(!s.val())return;const r=db.ref('presenca/'+uid);r.onDisconnect().remove();r.set({n:nome,t:TS()}).catch(()=>{});});
-  db.ref('presenca').on('value',s=>{lista=s.val()||{};nOn.textContent=' · 👥 '+Object.keys(lista).length;});
+  if(!window.__lite)db.ref('.info/connected').on('value',s=>{if(!s.val())return;const r=db.ref('presenca/'+uid);r.onDisconnect().remove();r.set({n:nome,t:TS()}).catch(()=>{});});
+  if(!window.__lite)db.ref('presenca').on('value',s=>{lista=s.val()||{};nOn.textContent=' · 👥 '+Object.keys(lista).length;});
   db.ref('ranking').orderByChild('pontos').limitToLast(100).on('value',sn=>{
     const soma={};sn.forEach(c=>{const v=c.val();if(v&&v.curso)soma[v.curso]=(soma[v.curso]||0)+(v.pontos||0);});
     const l=Object.entries(soma).sort((x,y)=>y[1]-x[1]).slice(0,5),box=$('rankCursos');if(!box)return;box.innerHTML='';
@@ -836,7 +838,7 @@ window.abrirApp=async function(...a){
     const sala=salaDe(id),kv='visto_'+uid+'_'+sala,g=lerN(kv,null);
     visto[id]=g===null?Date.now():parseInt(g);
     if(g===null)gravaN(kv,String(visto[id]));
-    db.ref('msgs/'+sala).limitToLast(60).on('child_added',s=>{
+    db.ref('msgs/'+sala).limitToLast(window.__lite?15:60).on('child_added',s=>{
       const m=s.val();if(!m||!m.hora)return;
       if(m.hora>maxH[id])maxH[id]=m.hora;
       if(m.uid===uid||m.hora<=visto[id])return;
@@ -879,6 +881,30 @@ window.abrirApp=async function(...a){
     if(iniciado||!db||!uid)return;iniciado=true;
     ouvirSala('chat');ouvirSala('curso');vigiarIA();ouvirDic().catch(()=>{});ouvirAdmin();pintar();
   };
+})();
+
+/* ========== 12. MODO LITE: poupar dados (só texto, avatares na app, menos mensagens) ========== */
+(function(){
+  if(window.__lite){
+    const cor=n=>{let h=0;for(const c of String(n))h=(h*31+c.charCodeAt(0))%360;return h;};
+    const svg=(n,bot)=>{
+      const i=(bot?'IA':String(n||'?').trim().slice(0,2).toUpperCase()).replace(/[<>&"']/g,'');
+      const f=bot?'#00a8ff':'hsl('+cor(n)+',70%,45%)';
+      return 'data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="'+f+'"/><text x="20" y="26" font-size="16" text-anchor="middle" fill="#fff" font-family="sans-serif">'+i+'</text></svg>');
+    };
+    window.addMsg=function(cid,rem,html,tipo){
+      const cont=document.getElementById(cid),div=document.createElement('div');
+      div.className='msg '+tipo;
+      div.innerHTML='<img src="'+svg(rem,tipo==='bot')+'" class="avatar" alt=""><div class="bubble">'+html+'</div>';
+      cont.appendChild(div);cont.scrollTop=cont.scrollHeight;return div;
+    };
+  }
+  const g=document.querySelector('#config .config-grid');if(!g)return;
+  const c=document.createElement('div');c.className='config-card';
+  c.innerHTML='<h3>📶 Modo Lite (poupar dados)</h3><div class="switch"><span>Ativar modo Lite</span><input type="checkbox" id="liteSw"></div><p class="aviso">Chat só com texto: sem fotos, menos mensagens carregadas, avatares desenhados na app e sem "a escrever" nem "online". A IA e o Desafio funcionam igual. A app recarrega ao mudar.</p>';
+  g.insertBefore(c,g.lastElementChild);
+  const sw=document.getElementById('liteSw');sw.checked=!!window.__lite;
+  sw.onchange=()=>{try{localStorage.setItem('lite',sw.checked?'1':'0');}catch(e){}location.reload();};
 })();
 
 /* ========== 6. ATUALIZAÇÃO AUTOMÁTICA (só na versão online) ========== */
