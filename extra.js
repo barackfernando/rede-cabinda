@@ -1,4 +1,4 @@
-window.__lite=(function(){try{return localStorage.getItem('lite')==='1';}catch(e){return false;}})();
+window.__lite=false;
 /* extras.js — Rede Cabinda Pro: aba Aprender + segurança. Carregar DEPOIS do script principal. */
 
 /* ========== 1. ABA 🎓 APRENDER ========== */
@@ -323,7 +323,7 @@ window.carregarSala=function(sala,cid){
     if(m.resp&&typeof m.resp==='object'&&/^[-\w]{1,40}$/.test(String(m.resp.k))){
       cit='<div class="cit" style="border-left:3px solid var(--dourado);background:#0003;border-radius:8px;padding:4px 8px;margin-bottom:4px;font-size:12px;cursor:pointer;overflow:hidden"><img class="qimg" alt="" style="float:right;width:34px;height:34px;object-fit:cover;border-radius:6px;margin-left:6px"><b>'+esc(String(m.resp.n||'').slice(0,30))+'</b><br>'+esc(String(m.resp.t||'').slice(0,100))+'</div>';
     }
-    const d=addMsg(cid,m.nome,(minha?'':'<div class="nome">'+esc(m.nome)+'</div>')+cit+img+txt+'<div class="hora">'+hora+'</div>',minha?'mine':'');
+    const d=addMsg(cid,m.nome,(minha?'':'<div class="nome">'+esc(m.nome)+(sala==='Geral'&&m.curso?' <span class="ctag">'+esc(String(m.curso).slice(0,40))+'</span>':'')+'</div>')+cit+img+txt+'<div class="hora">'+hora+'</div>',minha?'mine':'');
     d.dataset.k=s.key;cache[s.key]=m;
     const q=d.querySelector('.cit');
     if(q){q.onclick=()=>irPara(cid,m.resp.k);const qi=d.querySelector('.qimg'),o=cache[m.resp.k];if(qi){if(o&&o.img&&OKIMG.test(o.img))qi.src=o.img;else qi.remove();}}
@@ -883,30 +883,6 @@ window.abrirApp=async function(...a){
   };
 })();
 
-/* ========== 12. MODO LITE: poupar dados (só texto, avatares na app, menos mensagens) ========== */
-(function(){
-  if(window.__lite){
-    const cor=n=>{let h=0;for(const c of String(n))h=(h*31+c.charCodeAt(0))%360;return h;};
-    const svg=(n,bot)=>{
-      const i=(bot?'IA':String(n||'?').trim().slice(0,2).toUpperCase()).replace(/[<>&"']/g,'');
-      const f=bot?'#00a8ff':'hsl('+cor(n)+',70%,45%)';
-      return 'data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="'+f+'"/><text x="20" y="26" font-size="16" text-anchor="middle" fill="#fff" font-family="sans-serif">'+i+'</text></svg>');
-    };
-    window.addMsg=function(cid,rem,html,tipo){
-      const cont=document.getElementById(cid),div=document.createElement('div');
-      div.className='msg '+tipo;
-      div.innerHTML='<img src="'+svg(rem,tipo==='bot')+'" class="avatar" alt=""><div class="bubble">'+html+'</div>';
-      cont.appendChild(div);cont.scrollTop=cont.scrollHeight;return div;
-    };
-  }
-  const g=document.querySelector('#config .config-grid');if(!g)return;
-  const c=document.createElement('div');c.className='config-card';
-  c.innerHTML='<h3>📶 Modo Lite (poupar dados)</h3><div class="switch"><span>Ativar modo Lite</span><input type="checkbox" id="liteSw"></div><p class="aviso">Chat só com texto: sem fotos, menos mensagens carregadas, avatares desenhados na app e sem "a escrever" nem "online". A IA e o Desafio funcionam igual. A app recarrega ao mudar.</p>';
-  g.insertBefore(c,g.lastElementChild);
-  const sw=document.getElementById('liteSw');sw.checked=!!window.__lite;
-  sw.onchange=()=>{try{localStorage.setItem('lite',sw.checked?'1':'0');}catch(e){}location.reload();};
-})();
-
 /* ========== 6. ATUALIZAÇÃO AUTOMÁTICA (só na versão online) ========== */
 (function(){
   if(location.protocol!=='https:')return;
@@ -993,4 +969,124 @@ window.abrirApp=async function(...a){
     const e=document.getElementById(i);
     if(e){e.type='hidden';e.value='gsk_servidor';e.setAttribute('autocomplete','off');e.removeAttribute('placeholder');}
   });
+})();
+
+/* ========== 13. VISUAL AFRICANO + PERFIL + CONFIGURAÇÕES + SENHA VISÍVEL ========== */
+(function(){
+  const $=id=>document.getElementById(id);
+  const ler=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v;}catch(e){return d;}};
+  const gr=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+  const ACENTOS={ouro:['#ffb800','Savana (ouro)'],verde:['#00d26a','Floresta (verde)'],laranja:['#ff7a3d','Pôr do sol (laranja)'],azul:['#00a8ff','Oceano (azul)']};
+  function aplicar(){
+    const r=document.documentElement.style,a=ACENTOS[ler('acento','ouro')]||ACENTOS.ouro;
+    r.setProperty('--fs',ler('fs','1'));r.setProperty('--dourado',a[0]);
+  }
+  aplicar();
+
+  // ---- Estilo africano (faixa kente, cartões, bolhas, splash)
+  const KENTE='repeating-linear-gradient(90deg,#ffb800 0 18px,#e63946 18px 30px,#00d26a 30px 48px,#0a0f1a 48px 54px)';
+  const css=document.createElement('style');
+  css.textContent=`
+  header{background:linear-gradient(135deg,#121927,#1e2a3a)!important;border-bottom:0!important;position:relative;padding-bottom:16px!important}
+  header::after,.barra-topo::after{content:'';position:absolute;left:0;right:0;bottom:0;height:5px;background:${KENTE}}
+  .barra-topo{position:relative;border-bottom:0!important;padding-bottom:14px!important;letter-spacing:.3px}
+  .barra-topo::after{height:3px;opacity:.85}
+  header img,.avatar{box-shadow:0 0 0 2px #0a0f1a,0 0 12px #ffb80066}
+  .tab{transition:.2s}.tab.active{background:linear-gradient(180deg,#ffb80026,transparent);border-radius:12px 12px 0 0}
+  .bubble{box-shadow:0 2px 8px #0005;font-size:calc(15px*var(--fs,1))!important}
+  .opt{font-size:calc(16px*var(--fs,1))!important;border-radius:14px!important;box-shadow:0 3px 10px #0004}
+  .item,.rank,.config-card,.africa-card,.conta{border-radius:16px!important;box-shadow:0 4px 14px #0003}
+  .btn{box-shadow:0 6px 16px #0005;letter-spacing:.3px;transition:transform .1s}.btn:active{transform:scale(.97)}
+  .msgs{background-image:radial-gradient(#ffffff0a 1px,transparent 1px);background-size:22px 22px}
+  .tela{background:radial-gradient(circle at 15% 8%,#ffb80018,transparent 40%),radial-gradient(circle at 85% 92%,#e6394618,transparent 40%),var(--bg)}
+  .tela h1{text-shadow:0 2px 14px #ffb80066;letter-spacing:.5px}
+  .tela h1::after{content:'';display:block;height:4px;width:120px;margin:10px auto 0;border-radius:4px;background:${KENTE}}
+  .ctag{font-size:10px;background:#ffb80033;color:var(--dourado);border-radius:8px;padding:1px 6px;margin-left:4px;font-weight:600}
+  .prov{display:flex;gap:8px;justify-content:space-between;align-items:center;font-size:12px;padding:6px 14px;background:linear-gradient(90deg,#ffb80018,transparent);color:#cbd5e1}
+  .prov b{cursor:pointer;padding:4px 8px}
+  #splash{position:fixed;inset:0;z-index:300;background:#0a0f1a;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;animation:sumir .5s ease .9s forwards}
+  #splash div{font-size:54px}#splash b{color:#ffb800;font-size:22px;margin-top:8px}#splash i{display:block;height:5px;width:140px;margin-top:14px;border-radius:5px;background:${KENTE}}
+  @keyframes sumir{to{opacity:0;visibility:hidden}}
+  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#ffb80066;border-radius:6px}`;
+  document.head.appendChild(css);
+  const sp=document.createElement('div');sp.id='splash';sp.innerHTML='<div>🌍</div><b>Rede Cabinda Pro</b><i></i>';document.body.appendChild(sp);
+  setTimeout(()=>sp.remove(),1600);
+
+  // ---- Senha: mostrar / esconder
+  ['senhaConta','senhaLogin','rSenha','rSenha2'].forEach(id=>{
+    const i=$(id);if(!i||i.dataset.olho)return;i.dataset.olho='1';
+    const w=document.createElement('div');w.style.cssText='position:relative';
+    i.parentNode.insertBefore(w,i);w.appendChild(i);i.style.paddingRight='50px';
+    const b=document.createElement('button');b.type='button';b.textContent='👁️';b.setAttribute('aria-label','Mostrar ou esconder a senha');
+    b.style.cssText='position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:20px;cursor:pointer';
+    b.onclick=()=>{const v=i.type==='password';i.type=v?'text':'password';b.textContent=v?'🙈':'👁️';};
+    w.appendChild(b);
+  });
+
+  // ---- Provérbio do dia
+  const PROV=["Se queres ir rápido, vai sozinho; se queres ir longe, vai acompanhado.","É preciso uma aldeia inteira para educar uma criança.","Quem não sabe para onde vai, que olhe de onde veio.","Muitas mãos tornam o trabalho leve."];
+  const hoje=new Date().toISOString().slice(0,10);
+  if(ler('provOculto','')!==hoje){
+    const bt=document.querySelector('#chat .barra-topo');
+    if(bt){const d=document.createElement('div');d.className='prov';d.innerHTML='<span>📜 <i></i></span><b>✕</b>';
+      d.querySelector('i').textContent=PROV[Math.floor(Date.now()/864e5)%PROV.length];
+      d.querySelector('b').onclick=()=>{gr('provOculto',hoje);d.remove();};bt.insertAdjacentElement('afterend',d);}
+  }
+
+  // ---- Configurações novas
+  const g=document.querySelector('#config .config-grid');if(!g)return;
+  const card=h=>{const c=document.createElement('div');c.className='config-card';c.innerHTML=h;g.insertBefore(c,g.lastElementChild);return c;};
+  const nivel=p=>p>=700?'Mestre do Kongo 👑':p>=300?'Contador de Histórias 📖':p>=100?'Caminhante 🥁':'Aprendiz 🌱';
+  card('<h3>👤 Meu perfil</h3><div id="pfInfo" style="font-size:14px;line-height:1.7"></div><button class="btn alt" id="pfEd">✏️ Editar nome e curso</button><button class="btn alt" id="pfSenha">🔑 Alterar senha (link por email)</button>');
+  card('<h3>🎨 Aparência</h3><p class="aviso">Cor da app</p><select id="apAc">'+Object.entries(ACENTOS).map(([k,v])=>'<option value="'+k+'">'+v[1]+'</option>').join('')+'</select><p class="aviso">Tamanho do texto</p><select id="apFs"><option value="0.9">Pequeno</option><option value="1">Normal</option><option value="1.15">Grande</option><option value="1.3">Muito grande</option></select>');
+  card('<h3>🛠️ A app</h3><p class="aviso" id="vrTxt">Versão…</p><button class="btn alt" id="vrAtu">🔄 Procurar atualização</button>');
+  $('apAc').value=ler('acento','ouro');$('apFs').value=ler('fs','1');
+  $('apAc').onchange=()=>{gr('acento',$('apAc').value);aplicar();};
+  $('apFs').onchange=()=>{gr('fs',$('apFs').value);aplicar();};
+  fetch('versao.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{$('vrTxt').textContent='Versão '+d.v+(d.nota?' · '+d.nota:'');}).catch(()=>{$('vrTxt').textContent='Versão instalada neste aparelho';});
+  $('vrAtu').onclick=async()=>{
+    try{if('caches' in window){(await caches.keys()).forEach(k=>caches.delete(k));}
+      if('serviceWorker' in navigator){(await navigator.serviceWorker.getRegistrations()).forEach(r=>r.unregister());}}catch(e){}
+    location.reload();
+  };
+  $('pfSenha').onclick=()=>{
+    const u=firebase.auth().currentUser;if(!u)return;
+    firebase.auth().sendPasswordResetEmail(u.email).then(()=>alert('Enviámos um link para '+mascarar(u.email)+'. Vê também o spam.')).catch(e=>alert(erroAuth(e)));
+  };
+  function infoPerfil(){
+    const u=firebase.auth().currentUser;
+    $('pfInfo').innerHTML='<b></b><br>Curso: <span id="pfC"></span><br>Nível: <span id="pfN"></span><br><span style="color:#8696a0" id="pfE"></span>';
+    $('pfInfo').querySelector('b').textContent=nome;$('pfC').textContent=cursoAtual;
+    $('pfN').textContent=nivel(pontos)+' ('+pontos+' pontos)';$('pfE').textContent=u?u.email:'';
+  }
+  const _t=window.trocarTab;
+  window.trocarTab=function(tab,el){_t(tab,el);if(tab==='config'&&typeof nome==='string'&&nome)infoPerfil();};
+
+  // ---- Editar nome e curso
+  $('pfEd').onclick=()=>{
+    const w=document.createElement('div');
+    w.style.cssText='position:fixed;inset:0;background:#0009;z-index:150;display:flex;align-items:flex-end';
+    const cursos=[...document.querySelectorAll('#rCurso option')].map(o=>o.value).filter(v=>v&&v!=='__outro');
+    w.innerHTML='<div style="width:100%;max-width:900px;margin:0 auto;background:var(--bg2);border-radius:18px 18px 0 0;padding:16px"><h3 style="color:var(--dourado);margin-bottom:6px">✏️ Editar perfil</h3><input id="edN" maxlength="30" placeholder="Nome"><input id="edC" maxlength="40" list="edL" placeholder="Curso (escolhe ou escreve)"><datalist id="edL">'+cursos.map(c=>'<option value="'+c+'">').join('')+'</datalist><p class="aviso">As mensagens antigas ficam com o nome antigo. O nome novo vale daqui para a frente.</p><button class="btn" id="edOk">Guardar</button><button class="btn alt" id="edNo">Cancelar</button></div>';
+    document.body.appendChild(w);
+    $('edN').value=nome;$('edC').value=cursoAtual;
+    $('edNo').onclick=()=>w.remove();
+    $('edOk').onclick=async()=>{
+      const n=$('edN').value.trim(),c=$('edC').value.trim().toUpperCase().replace(/[<>]/g,'');
+      if(idNome(n).length<3)return alert('O nome precisa de pelo menos 3 letras ou números.');
+      if(c.length<3)return alert('Escreve o teu curso.');
+      try{
+        const velho=idNome(nome),novo=idNome(n);
+        if(novo!==velho){
+          try{await db.ref('nomes/'+novo).set(uid);}catch(e){return alert('Esse nome já tem dono. Escolhe outro.');}
+          await db.ref('nomes/'+velho).remove().catch(()=>{});
+        }
+        const u=firebase.auth().currentUser;
+        await u.updateProfile({displayName:n}).catch(()=>{});
+        await db.ref('perfis/'+uid).set({nome:n,curso:c});
+        gravarLS('conta',JSON.stringify({email:u.email,nome:n,curso:c}));
+        alert('Perfil atualizado ✅');location.reload();
+      }catch(e){alert('Não foi possível guardar: '+(e.message||e));}
+    };
+  };
 })();
