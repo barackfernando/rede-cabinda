@@ -1,4 +1,36 @@
 window.__lite=false;
+/* ========== 0. CAIXAS DE TEXTO COM VÁRIAS LINHAS, DATAS NO CHAT E AVISO DE BURLA ========== */
+(function(){
+  const toque=matchMedia('(pointer:coarse)').matches;
+  [['texto',()=>enviarSala('Geral','texto')],['textoCurso',()=>enviarSala(salaCurso,'textoCurso')],['textoIA',()=>enviarIA()]].forEach(([id,enviar])=>{
+    const i=document.getElementById(id);if(!i)return;
+    const t=document.createElement('textarea');
+    t.id=id;t.placeholder=i.placeholder;t.maxLength=i.maxLength>0?i.maxLength:500;t.rows=1;t.className=i.className;
+    i.replaceWith(t);
+    const ajustar=()=>{t.style.height='auto';t.style.height=Math.min(t.scrollHeight,120)+'px';};
+    t.addEventListener('input',ajustar);
+    t.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!toque){e.preventDefault();enviar();setTimeout(ajustar,50);}});
+    const b=t.parentElement.querySelector('.icon-btn:last-child');
+    if(b)b.addEventListener('click',()=>setTimeout(ajustar,80));
+    setInterval(()=>{if(!t.value&&t.style.height&&t.style.height!=='auto')t.style.height='auto';},800);
+  });
+  const css=document.createElement('style');
+  css.textContent='.input-area textarea{flex:1;border-radius:22px;padding:12px 16px;margin:0;border:none;background:var(--card);color:var(--text);font-size:16px;outline:none;resize:none;max-height:120px;line-height:1.35;font-family:inherit;overflow-y:auto}.input-area{align-items:flex-end!important}.bubble{white-space:pre-wrap}.dia-sep{display:table;margin:12px auto;font-size:12px;padding:4px 14px;border-radius:12px;background:var(--card);color:var(--text);opacity:.85}.burla{font-size:11px;color:#ffb800;margin-top:4px}';
+  document.head.appendChild(css);
+  const ultimoDia={};
+  window.__sepData=function(cid,t){
+    if(!t||typeof t!=='number')return;
+    const d=new Date(t),k=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
+    if(ultimoDia[cid]===k)return;ultimoDia[cid]=k;
+    const hj=new Date(),ont=new Date(Date.now()-864e5),igual=(a,b)=>a.toDateString()===b.toDateString();
+    const rot=igual(d,hj)?'Hoje':igual(d,ont)?'Ontem':d.toLocaleDateString('pt-AO',{day:'numeric',month:'long',year:d.getFullYear()===hj.getFullYear()?undefined:'numeric'});
+    const c=document.getElementById(cid);if(!c)return;
+    const sp=document.createElement('div');sp.className='dia-sep';sp.textContent=rot;c.appendChild(sp);
+  };
+  const RE=/(https?:\/\/|www\.|\.com\b|bit\.ly)|multicaixa|\biban\b|transfer[eê]ncia|unitel\s*money|bitcoin|invest(e|imento)|ganha(r)? dinheiro|pr[eé]mio|c[oó]digo de (verifica|confirma)|\bpin\b|dep[oó]sito/i;
+  window.__burla=t=>RE.test(String(t||''));
+})();
+
 /* extras.js — Rede Cabinda Pro: aba Aprender + segurança. Carregar DEPOIS do script principal. */
 
 /* ========== 1. ABA 🎓 APRENDER ========== */
@@ -323,7 +355,9 @@ window.carregarSala=function(sala,cid){
     if(m.resp&&typeof m.resp==='object'&&/^[-\w]{1,40}$/.test(String(m.resp.k))){
       cit='<div class="cit" style="border-left:3px solid var(--dourado);background:#0003;border-radius:8px;padding:4px 8px;margin-bottom:4px;font-size:12px;cursor:pointer;overflow:hidden"><img class="qimg" alt="" style="float:right;width:34px;height:34px;object-fit:cover;border-radius:6px;margin-left:6px"><b>'+esc(String(m.resp.n||'').slice(0,30))+'</b><br>'+esc(String(m.resp.t||'').slice(0,100))+'</div>';
     }
-    const d=addMsg(cid,m.nome,(minha?'':'<div class="nome">'+esc(m.nome)+(sala==='Geral'&&m.curso?' <span class="ctag">'+esc(String(m.curso).slice(0,40))+'</span>':'')+'</div>')+cit+img+txt+'<div class="hora">'+hora+'</div>',minha?'mine':'');
+    window.__sepData(cid,m.hora);
+    const avisoB=(!minha&&window.__burla(m.texto))?'<div class="burla">⚠️ Cuidado: não envies dinheiro, senhas nem códigos.</div>':'';
+    const d=addMsg(cid,m.nome,(minha?'':'<div class="nome">'+esc(m.nome)+(sala==='Geral'&&m.curso?' <span class="ctag">'+esc(String(m.curso).slice(0,40))+'</span>':'')+'</div>')+cit+img+txt+avisoB+'<div class="hora">'+hora+'</div>',minha?'mine':'');
     d.dataset.k=s.key;cache[s.key]=m;
     const q=d.querySelector('.cit');
     if(q){q.onclick=()=>irPara(cid,m.resp.k);const qi=d.querySelector('.qimg'),o=cache[m.resp.k];if(qi){if(o&&o.img&&OKIMG.test(o.img))qi.src=o.img;else qi.remove();}}
