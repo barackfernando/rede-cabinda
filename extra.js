@@ -131,10 +131,11 @@ document.querySelectorAll('.aviso').forEach(a=>{if(/Chave grátis/.test(a.textCo
 
 // IA passa pelo servidor
 window.chamarGroq=async function(msgs,signal){
+  const im=window.__imgIA||null;window.__imgIA=null;
   const t=await firebase.auth().currentUser.getIdToken();
   const r=await fetch(WORKER+'/ia',{method:'POST',signal,
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},
-    body:JSON.stringify({mensagens:msgs.filter(m=>m.role!=='system').slice(-10),nome,curso:cursoAtual,idioma:$('idiomaSelect').value})});
+    body:JSON.stringify({mensagens:msgs.filter(m=>m.role!=='system').slice(-10),nome,curso:cursoAtual,idioma:$('idiomaSelect').value,imagem:im||undefined,modo:window.__modoIA||'rapido'})});
   const d=await r.json().catch(()=>({}));
   if(r.ok)return d;
   const e=new Error(d.erro||('Erro '+r.status));e.status=r.status;throw e;
@@ -1122,5 +1123,115 @@ window.abrirApp=async function(...a){
         alert('Perfil atualizado ✅');location.reload();
       }catch(e){alert('Não foi possível guardar: '+(e.message||e));}
     };
+  };
+})();
+
+/* ========== 14. IA COM IMAGEM (📷) E MODO PENSAR (🧠) ========== */
+(function(){
+  const $=id=>document.getElementById(id);
+  const area=document.querySelector('#ia .input-area'),inp=$('textoIA');
+  if(!area||!inp)return;
+  window.__modoIA='rapido';window.__imgIA=null;
+  const mk=(t,tt)=>{const b=document.createElement('button');b.className='icon-btn';b.textContent=t;b.title=tt;return b;};
+  const foto=mk('📷','Enviar imagem à IA'),modo=mk('⚡','Modo rápido'),file=document.createElement('input');
+  file.type='file';file.accept='image/*';file.style.display='none';
+  const chip=document.createElement('div');
+  chip.style.cssText='display:none;align-items:center;gap:8px;padding:6px 12px;background:var(--bg2);border-top:2px solid #222;font-size:13px';
+  area.parentElement.insertBefore(chip,area);
+  area.insertBefore(foto,inp);area.insertBefore(modo,inp);area.appendChild(file);
+  function mostrar(){
+    if(!window.__imgIA){chip.style.display='none';chip.textContent='';return;}
+    chip.style.display='flex';
+    chip.innerHTML='<img style="width:40px;height:40px;object-fit:cover;border-radius:8px"><span style="flex:1">Imagem pronta. Escreve a pergunta e envia.</span><b style="cursor:pointer;padding:4px 8px">✕</b>';
+    chip.querySelector('img').src=window.__imgIA;
+    chip.querySelector('b').onclick=()=>{window.__imgIA=null;mostrar();};
+  }
+  foto.onclick=()=>file.click();
+  file.onchange=()=>{
+    const f=file.files[0];file.value='';
+    if(!f||!f.type.startsWith('image/'))return;
+    const im=new Image(),u=URL.createObjectURL(f);
+    im.onload=()=>{
+      URL.revokeObjectURL(u);
+      let max=1024,q=0.8,url='';
+      for(let i=0;i<7;i++){
+        const r=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');
+        c.width=Math.round(im.width*r);c.height=Math.round(im.height*r);
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        url=c.toDataURL('image/jpeg',q);
+        if(url.length<=300000)break;
+        max*=0.8;q=Math.max(0.5,q-0.07);
+      }
+      if(url.length>380000)return alert('Imagem muito grande. Tenta outra.');
+      window.__imgIA=url;mostrar();
+    };
+    im.onerror=()=>alert('Não consegui abrir a imagem.');
+    im.src=u;
+  };
+  modo.onclick=()=>{
+    const p=window.__modoIA!=='pensar';
+    window.__modoIA=p?'pensar':'rapido';
+    modo.textContent=p?'🧠':'⚡';modo.title=p?'Modo pensar':'Modo rápido';
+    modo.style.background=p?'var(--dourado)':'';
+    inp.placeholder=p?'Modo pensar: respostas mais cuidadosas (mais lentas)…':'Pergunta qualquer coisa...';
+  };
+  const _e=window.enviarIA;
+  window.enviarIA=function(){
+    if($('btnIA').disabled)return _e.apply(this,arguments);
+    const im=window.__imgIA;
+    if(im&&!inp.value.trim())inp.value='Descreve esta imagem e explica o que vês.';
+    const r=_e.apply(this,arguments);
+    if(im){
+      const b=[...document.querySelectorAll('#msgsIA .msg.mine .bubble')].pop();
+      if(b){const t=document.createElement('img');t.src=im;t.style.cssText='display:block;max-width:100%;max-height:200px;object-fit:cover;border-radius:10px;margin-top:6px';b.appendChild(t);}
+      chip.style.display='none';chip.textContent='';
+    }
+    return r;
+  };
+})();
+
+/* ========== 15. IA CRIA IMAGENS (🎨) ========== */
+(function(){
+  const $=id=>document.getElementById(id);
+  const WORKER='https://rede-cabinda-ia.barackfernando22.workers.dev';
+  const area=document.querySelector('#ia .input-area'),inp=$('textoIA');
+  if(!area||!inp)return;
+  window.__criarImg=false;
+  const bt=document.createElement('button');bt.className='icon-btn';bt.textContent='🎨';bt.title='Criar imagem com a IA';
+  area.insertBefore(bt,inp);
+  bt.onclick=()=>{
+    window.__criarImg=!window.__criarImg;
+    bt.style.background=window.__criarImg?'var(--dourado)':'';
+    inp.placeholder=window.__criarImg?'Descreve a imagem que queres criar…':'Pergunta qualquer coisa...';
+  };
+  const redu=(src,max,q,lim)=>new Promise((ok,err)=>{
+    const im=new Image();
+    im.onload=()=>{let u='';for(let i=0;i<8;i++){const r=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*r);c.height=Math.round(im.height*r);c.getContext('2d').drawImage(im,0,0,c.width,c.height);u=c.toDataURL('image/jpeg',q);if(u.length<=lim)return ok(u);max*=.85;q=Math.max(.45,q-.06);}err(new Error('grande'));};
+    im.onerror=()=>err(new Error('img'));im.src=src;
+  });
+  async function criar(texto){
+    addMsg('msgsIA',nome,'🎨 '+esc(texto),'mine');
+    const c=addMsg('msgsIA','IA','<span class="loading">A criar a imagem… pode demorar uns segundos</span>','bot');
+    const B=c.querySelector('.bubble'),btn=$('btnIA');btn.disabled=true;
+    const ctrl=new AbortController(),tm=setTimeout(()=>ctrl.abort(),60000);
+    try{
+      const tk=await firebase.auth().currentUser.getIdToken();
+      const r=await fetch(WORKER+'/imagem',{method:'POST',signal:ctrl.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({prompt:texto})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok||!d.imagem)throw new Error(d.erro||('Erro '+r.status));
+      B.innerHTML='<b>🤖 IA Cabinda:</b><br>Aqui está a tua imagem:<img style="display:block;width:100%;max-width:300px;border-radius:12px;margin:8px 0"><div style="display:flex;gap:8px;flex-wrap:wrap"></div><div style="font-size:11px;color:#8696a0;margin-top:4px">Imagem criada por IA</div>';
+      B.querySelector('img').src=d.imagem;
+      const a=document.createElement('a');a.textContent='💾 Guardar';a.href=d.imagem;a.download='imagem-ia'+(d.imagem.startsWith('data:image/jpeg')?'.jpg':'.png');a.className='btn alt';a.style.cssText='width:auto;padding:8px 12px;font-size:13px;margin:0;text-decoration:none';
+      const g=document.createElement('button');g.textContent='💬 Enviar para a Geral';g.className='btn alt';g.style.cssText='width:auto;padding:8px 12px;font-size:13px;margin:0';
+      g.onclick=async()=>{try{const th=await redu(d.imagem,560,.7,90000),fu=await redu(d.imagem,1280,.82,380000);window._rc.enviar('Geral','🎨 Imagem criada pela IA: '+texto.slice(0,200),th,fu);g.disabled=true;g.textContent='✅ Enviada';}catch(e){alert('Não consegui enviar a imagem.');}};
+      B.querySelector('div').append(a,g);
+    }catch(e){B.innerHTML='⚠️ '+esc(e.name==='AbortError'?'A IA demorou demais. Tenta outra vez.':e.message);}
+    finally{clearTimeout(tm);btn.disabled=false;window.__criarImg=false;bt.style.background='';inp.placeholder='Pergunta qualquer coisa...';$('msgsIA').scrollTop=$('msgsIA').scrollHeight;}
+  }
+  const _e2=window.enviarIA;
+  window.enviarIA=function(){
+    if(!window.__criarImg||$('btnIA').disabled)return _e2.apply(this,arguments);
+    const t=inp.value.trim();if(!t)return;
+    inp.value='';criar(t);
   };
 })();
