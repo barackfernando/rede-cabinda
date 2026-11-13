@@ -18,6 +18,7 @@ window.__lite=false;
   css.textContent='.input-area textarea{flex:1;border-radius:22px;padding:12px 16px;margin:0;border:none;background:var(--card);color:var(--text);font-size:16px;outline:none;resize:none;max-height:120px;line-height:1.35;font-family:inherit;overflow-y:auto}.input-area{align-items:flex-end!important}.bubble{white-space:pre-wrap}.dia-sep{display:table;margin:12px auto;font-size:12px;padding:4px 14px;border-radius:12px;background:var(--card);color:var(--text);opacity:.85}.burla{font-size:11px;color:#ffb800;margin-top:4px}';
   document.head.appendChild(css);
   const ultimoDia={};
+  window.__sepReset=c=>{delete ultimoDia[c];};
   window.__sepData=function(cid,t){
     if(!t||typeof t!=='number')return;
     const d=new Date(t),k=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
@@ -668,6 +669,7 @@ window.menuMsg=function(sala,key,m,minha){
     ['↪️ Reencaminhar',()=>reencaminhar(sala,key,m)],
     ['⭐ Favoritar',()=>favoritar(key,m)]
   ];
+  if(!minha&&m.uid&&window.abrirPrivado)it.push(['💬 Conversar em privado',()=>window.abrirPrivado(m.uid,m.nome)]);
   if(m.texto&&navigator.clipboard)it.push(['📋 Copiar texto',()=>navigator.clipboard.writeText(m.texto)]);
   if(minha)it.push(['🗑️ Apagar a minha mensagem',()=>window._rc.apagar(sala,key,m),'danger']);
   else it.push(['⚠️ Denunciar',()=>db.ref('denuncias/'+key+'_'+uid).set({sala,key,autor:m.uid||'',nome:m.nome,texto:txDe(m).slice(0,200),hora:TS()}).then(()=>alert('Denúncia enviada. Obrigado!'))]);
@@ -1197,8 +1199,9 @@ window.abrirApp=async function(...a){
   const area=document.querySelector('#ia .input-area'),inp=$('textoIA');
   if(!area||!inp)return;
   window.__criarImg=false;
+  const IMG_RE=/\b(cria|criar|crie|gera|gerar|gere|faz|fazer|desenha|desenhar|desenhe|pinta|pintar|produz|produzir)(-me)?\b[^.!?\n]{0,30}\b(imagem|imagens|foto|fotos|desenho|desenhos|ilustra[cç][aã]o|logo|logotipo|cartaz|p[oô]ster|wallpaper|avatar)\b|^\s*(quero|preciso de|podes|consegues)\b[^.!?\n]{0,35}\b(imagem|desenho|ilustra[cç][aã]o|logotipo|cartaz)\b/i;
   const bt=document.createElement('button');bt.className='icon-btn';bt.textContent='🎨';bt.title='Criar imagem com a IA';
-  area.insertBefore(bt,inp);
+  area.insertBefore(bt,inp);bt.style.display='none';
   bt.onclick=()=>{
     window.__criarImg=!window.__criarImg;
     bt.style.background=window.__criarImg?'var(--dourado)':'';
@@ -1230,8 +1233,150 @@ window.abrirApp=async function(...a){
   }
   const _e2=window.enviarIA;
   window.enviarIA=function(){
-    if(!window.__criarImg||$('btnIA').disabled)return _e2.apply(this,arguments);
-    const t=inp.value.trim();if(!t)return;
+    const t=inp.value.trim();
+    if($('btnIA').disabled||(!window.__criarImg&&!(t&&!window.__imgIA&&IMG_RE.test(t))))return _e2.apply(this,arguments);
+    if(!t)return;
     inp.value='';criar(t);
+  };
+})();
+
+/* ========== 16. CONVERSAS PRIVADAS + ESTADOS DE ESTUDO ========== */
+(function(){
+  const $=id=>document.getElementById(id),TS=()=>firebase.database.ServerValue.TIMESTAMP;
+  const ler=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v;}catch(e){return d;}};
+  const gr=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+  const tabs=$('tabsApp'),ref=[...tabs.children].find(t=>(t.getAttribute('onclick')||'').includes("'ia'"))||tabs.lastElementChild;
+  function aba(id,rot,html,abrir){
+    const a=document.createElement('div');a.className='tab';a.textContent=rot;
+    a.onclick=function(){trocarTab(id,this);if(abrir)abrir();};
+    tabs.insertBefore(a,ref);
+    const p=document.createElement('div');p.id=id;p.className='painel';p.innerHTML=html;
+    document.querySelector('.container').appendChild(p);return a;
+  }
+  let off=0,est={},inbox={},chatCom=null,chatRef=null,ini=false,tipo='estudo';
+  const ago=()=>Date.now()+off,chatId=o=>[uid,o].sort().join('_'),vk=o=>'vp_'+uid+'_'+o;
+  const hm=t=>new Date(t).toLocaleTimeString('pt-AO',{hour:'2-digit',minute:'2-digit'});
+  const ativa=id=>{const p=$(id);return !!(p&&p.classList.contains('active')&&!document.hidden);};
+  const tq=matchMedia('(pointer:coarse)').matches;
+
+  const aP=aba('privado','✉️ Privado','<div id="pvL" style="display:flex;flex-direction:column;flex:1;min-height:0"><div class="barra-topo">✉️ Conversas privadas</div><div class="dic" id="pvLista"></div></div><div id="pvChat" style="display:none;flex:1;min-height:0;flex-direction:column"><div class="barra-topo" style="display:flex;align-items:center;gap:10px"><button class="icon-btn" id="pvVoltar" style="width:34px;height:34px">←</button><span id="pvNome" style="flex:1;text-align:left"></span></div><div id="pvAviso" style="display:none;font-size:12px;color:var(--dourado);padding:4px 14px"></div><div class="msgs" id="pvMsgs"></div><div class="input-area"><textarea id="pvTxt" rows="1" maxlength="500" placeholder="Escreve uma mensagem privada…"></textarea><button class="icon-btn" id="pvEnv">➤</button></div></div>',()=>{if(!chatCom)listar();});
+  const aE=aba('estados','🌟 Estados','<div class="barra-topo">🌟 Estados de estudo</div><div class="dic"><div class="config-card" style="margin-bottom:12px"><h3>O que estás a fazer agora?</h3><div id="esTipos" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div><input id="esTxt" maxlength="100"><select id="esDur"><option value="30">30 minutos</option><option value="60" selected>1 hora</option><option value="120">2 horas</option><option value="240">4 horas</option><option value="480">8 horas</option></select><button class="btn" id="esPub">Publicar estado</button><button class="btn alt" id="esRem">Remover o meu estado</button></div><h3 class="sec">👥 Agora na Rede</h3><div id="esLista"></div></div>',()=>pintarEst());
+
+  function marca(a,n){
+    let b=a.querySelector('.bd3');
+    if(!n){if(b)b.remove();return;}
+    if(!b){b=document.createElement('span');b.className='bd3';b.style.cssText='background:#ff4757;color:#fff;border-radius:10px;font-size:11px;padding:1px 6px;margin-left:4px;font-weight:700';a.appendChild(b);}
+    b.textContent=n>99?'99+':n;
+  }
+  function badge(){
+    let n=0;
+    Object.entries(inbox).forEach(([o,v])=>{if(v.d!==uid&&v.t>parseInt(ler(vk(o),'0'))&&!(chatCom&&chatCom.o===o&&ativa('privado')))n++;});
+    marca(aP,n);
+  }
+  function listar(){
+    const L=$('pvLista');if(!L)return;
+    const es=Object.entries(inbox).sort((a,b)=>b[1].t-a[1].t);
+    L.innerHTML=es.length?'':'<p class="aviso">Ainda não tens conversas. Na sala Geral, segura numa mensagem e escolhe "Conversar em privado", ou abre a aba 🌟 Estados.</p>';
+    es.forEach(([o,v])=>{
+      const nao=v.d!==uid&&v.t>parseInt(ler(vk(o),'0')),e=est[o],foco=e&&e.k==='foco'&&e.ate>ago();
+      const d=document.createElement('div');d.className='item';d.style.cssText='cursor:pointer;display:flex;justify-content:space-between;gap:8px;align-items:center';
+      d.innerHTML='<div style="min-width:0"><b></b><span></span><br><small style="color:#8696a0;font-weight:400"></small></div><div style="font-size:11px;color:#8696a0;text-align:right"></div>';
+      d.querySelector('b').textContent=v.n;d.querySelector('span').textContent=foco?' 🎯':'';
+      d.querySelector('small').textContent=(v.d===uid?'Tu: ':'')+v.x;
+      d.lastChild.textContent=hm(v.t)+(nao?' 🔴':'');
+      d.onclick=()=>abrir(o,v.n);L.appendChild(d);
+    });
+    badge();
+  }
+  function abrir(o,n,pre){
+    if(!o||o===uid)return;
+    chatCom={o,n};trocarTab('privado',aP);
+    $('pvL').style.display='none';$('pvChat').style.display='flex';
+    $('pvNome').textContent='💬 '+n;$('pvMsgs').innerHTML='';
+    if(window.__sepReset)window.__sepReset('pvMsgs');
+    const e=est[o],av=$('pvAviso');
+    if(e&&e.k==='foco'&&e.ate>ago()){av.style.display='block';av.textContent='🎯 '+n+' está em foco total até às '+hm(e.ate)+'. A resposta pode demorar.';}else av.style.display='none';
+    if(chatRef)chatRef.off();
+    const r=db.ref('privadas/'+chatId(o)).limitToLast(80);chatRef=r;
+    r.on('child_added',s=>{
+      const m=s.val();if(!m||!m.hora)return;
+      window.__sepData('pvMsgs',m.hora);
+      const minha=m.uid===uid;
+      addMsg('pvMsgs',minha?nome:n,esc(m.texto)+'<div class="hora">'+hm(m.hora)+'</div>',minha?'mine':'');
+      if(ativa('privado')&&chatCom&&chatCom.o===o){gr(vk(o),String(m.hora));badge();}
+    },()=>addMsg('pvMsgs','Sistema','⚠️ Sem permissão para abrir esta conversa.','bot'));
+    if(pre)$('pvTxt').value=pre;
+    $('pvTxt').focus();badge();
+  }
+  function enviar(){
+    const t=$('pvTxt').value.trim();if(!t||!chatCom)return;
+    const o=chatCom.o,k=db.ref('privadas/'+chatId(o)).push().key,x=t.slice(0,80),u={};
+    u['privadas/'+chatId(o)+'/'+k]={uid,texto:t.slice(0,500),hora:TS()};
+    u['inbox/'+uid+'/'+o]={n:chatCom.n,t:TS(),x,d:uid};
+    u['inbox/'+o+'/'+uid]={n:nome,t:TS(),x,d:uid};
+    u['limite/'+uid]=TS();
+    $('pvTxt').value='';$('pvTxt').style.height='auto';
+    db.ref().update(u).catch(()=>alert('Mensagem não enviada. Espera 2 segundos entre mensagens, ou a conta pode estar suspensa.'));
+  }
+  $('pvEnv').onclick=enviar;
+  $('pvTxt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!tq){e.preventDefault();enviar();}});
+  $('pvTxt').addEventListener('input',()=>{const t=$('pvTxt');t.style.height='auto';t.style.height=Math.min(t.scrollHeight,120)+'px';});
+  $('pvVoltar').onclick=()=>{chatCom=null;if(chatRef){chatRef.off();chatRef=null;}$('pvChat').style.display='none';$('pvL').style.display='flex';listar();};
+  window.abrirPrivado=abrir;
+
+  // ---- Estados de estudo
+  const TIPOS={estudo:['📚','A estudar','Disciplina (ex.: Matemática)'],ajuda:['🆘','Preciso de ajuda','Em que tens dúvida?'],foco:['🎯','Foco total','Até quando? (opcional)'],vitoria:['🏆','Conquista','O que conseguiste hoje?'],palavra:['🌍','Palavra aprendida','palavra = significado']};
+  const ch=$('esTipos');
+  Object.entries(TIPOS).forEach(([k,T])=>{
+    const b=document.createElement('button');b.type='button';b.textContent=T[0]+' '+T[1];
+    b.style.cssText='padding:8px 12px;border-radius:16px;border:1px solid var(--dourado);background:var(--card);color:var(--text);font-size:13px';
+    b.onclick=()=>{tipo=k;$('esTxt').placeholder=T[2];[...ch.children].forEach(x=>{x.style.background='var(--card)';});b.style.background='#ffb80055';};
+    ch.appendChild(b);if(k===tipo)b.click();
+  });
+  function confete(){
+    for(let i=0;i<16;i++){
+      const s=document.createElement('span');s.textContent=['🎉','✨','🌟','🏆'][i%4];
+      s.style.cssText='position:fixed;top:-30px;left:'+Math.random()*95+'vw;font-size:24px;z-index:300;transition:transform 2s ease-in,opacity 2s;pointer-events:none';
+      document.body.appendChild(s);
+      setTimeout(()=>{s.style.transform='translateY(105vh) rotate(360deg)';s.style.opacity='.2';},30+i*60);
+      setTimeout(()=>s.remove(),2400+i*60);
+    }
+  }
+  $('esPub').onclick=()=>{
+    const x=$('esTxt').value.trim().slice(0,100);
+    if(tipo!=='foco'&&x.length<2)return alert('Escreve um texto curto.');
+    db.ref('estados/'+uid).set({n:nome,c:cursoAtual,k:tipo,x:x||'Não perturbar',t:TS(),ate:ago()+parseInt($('esDur').value)*60000})
+      .then(()=>{$('esTxt').value='';if(tipo==='vitoria')confete();}).catch(()=>alert('Não foi possível publicar o estado.'));
+  };
+  $('esRem').onclick=()=>db.ref('estados/'+uid).remove();
+  function pintarEst(){
+    const L=$('esLista');if(!L||!uid)return;
+    const ag=ago(),es=Object.entries(est).filter(([o,v])=>v&&v.ate>ag).sort((a,b)=>((b[1].k==='ajuda')-(a[1].k==='ajuda'))||b[1].t-a[1].t);
+    L.innerHTML=es.length?'':'<p class="aviso">Ninguém publicou estado agora. Sê o primeiro! 🌱</p>';
+    es.forEach(([o,v])=>{
+      const T=TIPOS[v.k]||TIPOS.estudo,min=Math.max(1,Math.round((v.ate-ag)/60000));
+      const d=document.createElement('div');d.className='item';
+      d.innerHTML='<b></b> <span class="ctag"></span><br><span class="txt"></span><br><small style="color:#8696a0;font-weight:400"></small><div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"></div>';
+      d.querySelector('b').textContent=v.n;d.querySelector('.ctag').textContent=v.c;
+      d.querySelector('.txt').textContent=T[0]+' '+T[1]+(v.x?': '+v.x:'');
+      d.querySelector('small').textContent='termina em '+(min>=60?Math.floor(min/60)+' h '+(min%60)+' min':min+' min');
+      if(o!==uid){
+        const bt=(t,f)=>{const b=document.createElement('button');b.className='btn alt';b.textContent=t;b.style.cssText='width:auto;padding:8px 12px;font-size:13px;margin:0';b.onclick=f;d.lastChild.appendChild(b);};
+        if(v.k==='ajuda')bt('🤝 Posso ajudar',()=>abrir(o,v.n,'Olá! Posso ajudar-te com: '+v.x));
+        else if(v.k==='estudo')bt('📚 Estudar juntos',()=>abrir(o,v.n,'Vamos estudar juntos '+v.x+'?'));
+        else bt('💬 Falar',()=>abrir(o,v.n));
+      }else d.style.borderLeftColor='var(--verde)';
+      L.appendChild(d);
+    });
+    marca(aE,Object.entries(est).filter(([o,v])=>o!==uid&&v&&v.k==='ajuda'&&v.ate>ag).length);
+  }
+  const _a=window.abrirApp;
+  window.abrirApp=async function(...a){
+    await _a.apply(this,a);
+    if(ini||!db||!uid)return;ini=true;
+    db.ref('.info/serverTimeOffset').once('value').then(s=>{off=s.val()||0;});
+    db.ref('inbox/'+uid).on('value',s=>{inbox=s.val()||{};listar();});
+    db.ref('estados').on('value',s=>{est=s.val()||{};pintarEst();listar();});
+    setInterval(pintarEst,30000);
   };
 })();
