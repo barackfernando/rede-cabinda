@@ -1380,3 +1380,113 @@ window.abrirApp=async function(...a){
     setInterval(pintarEst,30000);
   };
 })();
+
+/* ========== 17. MURAL SOCIAL (publicações, gostos, comentários) + 🔔 NOTIFICAÇÕES ========== */
+(function(){
+  const $=id=>document.getElementById(id),TS=()=>firebase.database.ServerValue.TIMESTAMP;
+  const ler=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v;}catch(e){return d;}};
+  const gr=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+  const tabs=$('tabsApp');
+  function aba(id,rot,html,abrir,antes){
+    const a=document.createElement('div');a.className='tab';a.textContent=rot;
+    a.onclick=function(){trocarTab(id,this);if(abrir)abrir();};
+    tabs.insertBefore(a,antes);
+    const p=document.createElement('div');p.id=id;p.className='painel';p.innerHTML=html;
+    document.querySelector('.container').appendChild(p);return a;
+  }
+  const aM=aba('mural','🏠 Mural','<div class="barra-topo">🏠 Mural da Rede</div><div class="dic"><div class="config-card" style="margin-bottom:12px"><textarea id="poTxt" rows="2" maxlength="500" placeholder="Partilha uma ideia, dúvida ou novidade de estudo…" style="width:100%;padding:12px;background:var(--card);color:var(--text);border:2px solid transparent;border-radius:12px;font-size:16px;font-family:inherit;resize:none"></textarea><div id="poPrev" style="display:none;margin:6px 0;font-size:13px"></div><div style="display:flex;gap:8px;margin-top:6px"><button class="btn alt" id="poFoto" style="margin:0">📷 Foto</button><button class="btn" id="poPub" style="margin:0">Publicar</button></div></div><div id="poLista"></div></div>',null,tabs.firstElementChild);
+  const ref=[...tabs.children].find(t=>(t.getAttribute('onclick')||'').includes("'ia'"))||tabs.lastElementChild;
+  const aN=aba('notifs','🔔 Avisos','<div class="barra-topo">🔔 Avisos</div><div class="dic"><button class="btn alt" id="nfLimpar">🧹 Limpar avisos</button><div id="nfLista"></div></div>',()=>abrirNotifs(),ref);
+  let admin=false,ini=false,foto=null,notifs={};const L={};
+  const ha=t=>{const m=Math.round((Date.now()-t)/60000);return m<1?'agora':m<60?m+' min':m<1440?Math.floor(m/60)+' h':new Date(t).toLocaleDateString('pt-AO',{day:'numeric',month:'short'});};
+  function marca(a,n){let b=a.querySelector('.bd3');if(!n){if(b)b.remove();return;}if(!b){b=document.createElement('span');b.className='bd3';b.style.cssText='background:#ff4757;color:#fff;border-radius:10px;font-size:11px;padding:1px 6px;margin-left:4px;font-weight:700';a.appendChild(b);}b.textContent=n>99?'99+':n;}
+  function sheet(itens){
+    const w=document.createElement('div');w.style.cssText='position:fixed;inset:0;background:#0009;z-index:150;display:flex;align-items:flex-end';
+    const c=document.createElement('div');c.style.cssText='width:100%;max-width:900px;margin:0 auto;background:var(--bg2);border-radius:18px 18px 0 0;padding:14px';
+    w.appendChild(c);w.onclick=e=>{if(e.target===w)w.remove();};
+    itens.concat([['Cancelar',()=>{}]]).forEach(([t,f,cl])=>{const b=document.createElement('button');b.className='btn '+(cl||'alt');b.textContent=t;b.onclick=async()=>{w.remove();try{await f();}catch(e){alert('Não foi possível: '+(e.message||e));}};c.appendChild(b);});
+    document.body.appendChild(w);
+  }
+  const reduzir=(im,max,q,lim)=>{let u='';for(let i=0;i<8;i++){const r=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*r);c.height=Math.round(im.height*r);c.getContext('2d').drawImage(im,0,0,c.width,c.height);u=c.toDataURL('image/jpeg',q);if(u.length<=lim)return u;max*=.85;q=Math.max(.45,q-.06);}throw new Error('grande');};
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.style.display='none';document.body.appendChild(inp);
+  $('poFoto').onclick=()=>inp.click();
+  inp.onchange=()=>{
+    const f=inp.files[0];inp.value='';if(!f||!f.type.startsWith('image/'))return;
+    const im=new Image(),u=URL.createObjectURL(f);
+    im.onload=()=>{URL.revokeObjectURL(u);try{foto={th:reduzir(im,480,.65,50000),fu:reduzir(im,1280,.82,380000)};}catch(e){return alert('Imagem muito grande. Tenta outra.');}
+      const p=$('poPrev');p.style.display='block';p.innerHTML='✅ Foto pronta <b style="cursor:pointer;padding:4px 8px">✕</b>';p.querySelector('b').onclick=()=>{foto=null;p.style.display='none';};};
+    im.onerror=()=>alert('Não consegui abrir a imagem.');im.src=u;
+  };
+  $('poPub').onclick=()=>{
+    const x=$('poTxt').value.trim();if(!x&&!foto)return alert('Escreve algo ou escolhe uma foto.');
+    const k=db.ref('posts').push().key,u={},p={uid,n:nome,c:cursoAtual,x:x.slice(0,500),t:TS()};
+    if(foto){p.img=foto.th;p.full=true;u['fotos/'+k]={uid,d:foto.fu};}
+    u['posts/'+k]=p;u['limite/'+uid]=TS();
+    db.ref().update(u).then(()=>{$('poTxt').value='';foto=null;$('poPrev').style.display='none';}).catch(()=>alert('Não publicado. Espera uns segundos entre publicações, ou a conta pode estar suspensa.'));
+  };
+  function notificar(p,key,k,x,id){
+    if(p.uid===uid)return;
+    db.ref('notif/'+p.uid+'/'+id).set({k,d:uid,n:nome,x:String(x).slice(0,100),t:TS(),p:key}).catch(()=>{});
+  }
+  function cartao(key,p){
+    const d=document.createElement('div');d.className='item';d.dataset.p=key;
+    d.innerHTML='<b></b> <span class="ctag"></span> <small style="color:#8696a0;font-weight:400"></small><div class="ptxt" style="margin:6px 0;white-space:pre-wrap;font-weight:400"></div><img class="pimg" alt="foto" style="display:none;width:100%;max-height:320px;object-fit:cover;border-radius:12px;cursor:pointer"><div style="display:flex;gap:18px;margin-top:8px;font-size:14px;font-weight:400"><span class="pl" style="cursor:pointer">🤍 0</span><span class="pc" style="cursor:pointer">💬 0</span><span class="pm" style="cursor:pointer">⋯</span></div><div class="pcs" style="display:none;margin-top:8px"></div>';
+    d.querySelector('b').textContent=p.n;d.querySelector('.ctag').textContent=p.c||'';d.querySelector('small').textContent='· '+ha(p.t);d.querySelector('.ptxt').textContent=p.x||'';
+    if(p.img&&/^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(p.img)){const im=d.querySelector('.pimg');im.src=p.img;im.style.display='block';im.onclick=()=>window._rc.ver(p.img,p.full?key:null);}
+    const pl=d.querySelector('.pl'),pc=d.querySelector('.pc'),box=d.querySelector('.pcs');
+    let meu=false;
+    const rl=db.ref('curtidas/'+key),rc=db.ref('comentarios/'+key);L[key]=[rl,rc];
+    rl.on('value',s=>{meu=s.hasChild(uid);pl.textContent=(meu?'❤️ ':'🤍 ')+s.numChildren();});
+    rc.on('value',s=>{pc.textContent='💬 '+s.numChildren();});
+    pl.onclick=()=>{const r=db.ref('curtidas/'+key+'/'+uid);if(meu)r.remove();else r.set(true).then(()=>notificar(p,key,'curtida',p.x||'📷 Foto','like_'+key+'_'+uid));};
+    pc.onclick=()=>{
+      if(box.style.display==='block'){box.style.display='none';return;}
+      box.style.display='block';if(box.dataset.ok)return;box.dataset.ok='1';
+      box.innerHTML='<div class="cl"></div><div style="display:flex;gap:6px;margin-top:6px"><input class="ci" maxlength="300" placeholder="Escreve um comentário…" style="margin:0;padding:10px"><button class="btn" style="width:auto;margin:0;padding:10px 14px">➤</button></div>';
+      rc.on('child_added',s=>{const c=s.val();if(!c)return;const e=document.createElement('div');e.style.cssText='font-size:13px;margin:4px 0;font-weight:400';e.innerHTML='<b></b> <span></span>';e.querySelector('b').textContent=c.n;e.querySelector('span').textContent=c.x;box.querySelector('.cl').appendChild(e);});
+      const ci=box.querySelector('.ci');
+      box.querySelector('button').onclick=()=>{
+        const x=ci.value.trim();if(!x)return;
+        const ck=rc.push().key,u={};u['comentarios/'+key+'/'+ck]={uid,n:nome,x:x.slice(0,300),t:TS()};
+        if(p.uid!==uid)u['notif/'+p.uid+'/com_'+ck]={k:'comentario',d:uid,n:nome,x:x.slice(0,100),t:TS(),p:key};
+        ci.value='';db.ref().update(u).catch(()=>alert('Comentário não enviado.'));
+      };
+    };
+    d.querySelector('.pm').onclick=()=>{
+      const it=[];
+      if(p.uid!==uid&&window.abrirPrivado)it.push(['💬 Conversar em privado',()=>window.abrirPrivado(p.uid,p.n)]);
+      it.push(['↪️ Partilhar na sala Geral',()=>{window._rc.enviar('Geral','📣 '+p.n+': '+(p.x||'📷 Foto').slice(0,400),p.img||null,null);alert('Partilhado na Geral ✅');}]);
+      if(p.uid!==uid)it.push(['⚠️ Denunciar',()=>db.ref('denuncias/'+key+'_'+uid).set({sala:'feed',key,autor:p.uid,nome:p.n,texto:('[Mural] '+(p.x||'foto')).slice(0,200),hora:TS()}).then(()=>alert('Denúncia enviada. Obrigado!'))]);
+      if(p.uid===uid||admin)it.push(['🗑️ Apagar publicação',()=>{const u={};u['posts/'+key]=null;if(p.full)u['fotos/'+key]=null;return db.ref().update(u);},'danger']);
+      sheet(it);
+    };
+    return d;
+  }
+  function abrirNotifs(){
+    const ts=Object.values(notifs).map(v=>v.t||0);if(ts.length)gr('nv_'+uid,String(Math.max(...ts)));
+    pintarNotifs();
+  }
+  function pintarNotifs(){
+    const Lt=$('nfLista');if(!Lt||!uid)return;
+    const es=Object.entries(notifs).sort((a,b)=>b[1].t-a[1].t),nv=parseInt(ler('nv_'+uid,'0'));
+    Lt.innerHTML=es.length?'':'<p class="aviso">Sem avisos por agora. Quando alguém gostar ou comentar as tuas publicações, aparece aqui. 🌱</p>';
+    es.forEach(([k,v])=>{
+      const d=document.createElement('div');d.className='item';d.style.cursor='pointer';
+      d.textContent=(v.k==='curtida'?'❤️ ':'💬 ')+v.n+(v.k==='curtida'?' gostou da tua publicação: ':' comentou: ')+v.x+'  · '+ha(v.t);
+      d.onclick=()=>trocarTab('mural',aM);Lt.appendChild(d);
+    });
+    marca(aN,ativa('notifs')?0:es.filter(([k,v])=>v.t>nv).length);
+  }
+  const ativa=id=>{const p=$(id);return !!(p&&p.classList.contains('active'));};
+  $('nfLimpar').onclick=()=>{const u={};Object.keys(notifs).forEach(k=>{u['notif/'+uid+'/'+k]=null;});db.ref().update(u);};
+  const _a=window.abrirApp;
+  window.abrirApp=async function(...a){
+    await _a.apply(this,a);
+    if(ini||!db||!uid)return;ini=true;
+    db.ref('admins/'+uid).once('value').then(s=>{admin=s.val()===true;}).catch(()=>{});
+    const lista=$('poLista'),r=db.ref('posts').orderByChild('t').limitToLast(15);
+    r.on('child_added',s=>{const p=s.val();if(!p||!p.t)return;lista.insertBefore(cartao(s.key,p),lista.firstChild);});
+    r.on('child_removed',s=>{const e=lista.querySelector('[data-p="'+s.key+'"]');if(e)e.remove();if(L[s.key]){L[s.key].forEach(x=>x.off());delete L[s.key];}});
+    db.ref('notif/'+uid).limitToLast(40).on('value',s=>{notifs=s.val()||{};pintarNotifs();});
+  };
+})();
